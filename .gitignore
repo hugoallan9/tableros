@@ -1,5 +1,13 @@
 # Object file
 *.o
 
-# Ada Library Information
-*.ali
+# Archivos csv
+*.csv
+
+# Archivos css para los estilos
+*.css
+
+# Agregando al ignore los archivos de configuración
+parametros-server.R
+parametros-ui.R
+
