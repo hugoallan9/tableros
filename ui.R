@@ -112,40 +112,7 @@ dashboardPage(
               )
     ),
     
-    conditionalPanel(
-      condition = "output.condition == 0"
 
-    ),
-    
-    conditionalPanel(
-      condition = "output.condition == 1",
-      useShinyjs(),
-      fluidRow(
-        br(),
-        br(),
-        tags$h1("Detalle del Gasto ",style="text-align:center;color:blue;font-size:200%"),
-        tags$p("Click On Any Region To Get The Treemap Of That Region",style="text-align:center;color:purple"),
-        actionButton("atrasTM", "Subir Nivel" , icon = icon("glyphicon glyphicon-arrow-up", lib= "glyphicon") ),
-        plotOutput("treemap1",height="600px", click = "click_treemap")
-      )
-    ),
-    # ,
-    # 
-    conditionalPanel(
-      condition = "output.condition == 2",
-      fluidRow(
-        br(),
-        br(),
-        tags$h1("Mapa de Guatemala"),
-        leafletOutput("mapa", height = "600")
-      )
-    ),
-    conditionalPanel(
-      condition = "output.condition == 3",
-      fluidPage(
-
-      )
-    ), 
     
     conditionalPanel(
       condition =  "output.condition == 100",
