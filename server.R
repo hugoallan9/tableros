@@ -90,7 +90,25 @@ shinyServer(function(input, output, session) {
   datos_objeto_gasto <- read.csv( paste0('Data','/Jerarquia_ObjetoGasto.csv'), sep=';')
   datos_economico <- read.csv(  paste0('Data', '/Jerarquia_Economico.csv'), sep=';')
   
-  
+#Lista para las opciones de las tablas
+  opciones_tablas <- list(orderClasses = TRUE,
+       searching = TRUE,
+       # scrollCollapse = TRUE,
+       rownames = FALSE,
+       scroller = TRUE,
+       scrollX = TRUE,
+       scrollY =  "200px",
+       fixedHeader = TRUE,
+       class = 'cell-border stripe',
+       dom = 'tB',
+       buttons = c('copy', 'csv', 'excel', 'pdf'),
+       fixedColumns = list(
+         leftColumns = 3,
+         heightMatch = 'none'),
+       language = list(url = '//cdn.datatables.net/plug-ins/1.10.11/i18n/Spanish.json'
+       ),
+       preDrawCallback=JS('function() { Shiny.unbindAll(this.api().table().node()); }'),
+       drawCallback=JS('function() { Shiny.bindAll(this.api().table().node()); } ')   )
 
 # REACTIVE VALUES ---------------------------------------------------------
 
@@ -120,6 +138,20 @@ shinyServer(function(input, output, session) {
   network <- reactiveValues()
   
   #valores reactivos para los datos de comparación
+  comparativo_tabla <- reactiveValues(data = NULL)
+  
+  #valores reactivos para los datos principales
+  
+  datos_principales <- reactiveValues(data=NULL, jerarquia_dimension_ida = NULL,
+                                      jerarquia_valor_dimension_ida = NULL,
+                                      jerarquia_dimension_regreso = NULL,
+                                      jerarquia_valor_dimension_regreso = NULL, 
+                                      tabla_temporal = NULL,
+                                      val_filtros = NULL
+                                      )
+  
+  opciones_iniciales <- reactiveValues(opciones_filtro_inicio = NULL,
+                                       mascara_filtro_inicio = NULL)
   
 # CANDIDATA A ELMINACION --------------------------------------------------
 
@@ -242,7 +274,7 @@ shinyServer(function(input, output, session) {
 # ELEMENTOS RENDER --------------------------------------------------------
 
 
-# Definición de Render para detalle del gasto -----------------------------
+# Definición de Render para detalle del gasto 
 
   output$detalle <- renderUI({
     actionButton("detalleGasto",
@@ -536,6 +568,74 @@ shinyServer(function(input, output, session) {
   )
   
   
+  #Render de la tabla principal, se deja en una sóla función para facilitar su mantenimiento.
+  #Para hacer cambios en la tabla principal se debe hacer desde acá
+  output$tabla <- DT::renderDataTable({
+
+    
+    datos <- datos_principales$tabla_temporal
+    
+    isolate( {
+    
+      if(  is.null(datos_principales$val_filtros[[1]])  ){
+        #Construcción de los filtros
+        columnas <- datos_principales$data[, sapply( datos_principales$data, Negate( is.numeric ) ), with = FALSE ]
+        a = obtenerListaFiltros(columnas)
+        opciones_iniciales$opciones_filtro_inicio <- a[[1]]
+        opciones_iniciales$mascara_filtro_inicio <- a[[2]]
+        datos_principales$val_filtros <- list(a[[1]], a[[2]])
+        valores <- opciones_iniciales$opciones_filtro_inicio
+        mascara <- opciones_iniciales$mascara_filtro_inicio
+      }else{
+        valores <- datos_principales$val_filtros[[1]] 
+        mascara <-  datos_principales$val_filtros[[2]]  
+      }
+        
+      
+    } )
+    
+    
+    inputs <- character( nrow( datos ) )
+    for( i in seq_len(nrow( datos )) ){
+      print(  paste("Haciendo el botón:", paste0("btFiltroN",i + isolate( numeroReactivos$y )  )) )
+      inputs[i] <- as.character(dropdownButton( icon = icon("gear"), right = T, checkboxGroupButtons(
+        inputId = paste0("btFiltroN",i+ isolate( numeroReactivos$y )  ),
+        choiceNames  =  mascara, choiceValues = valores  , direction = "vertical") ) )
+    }
+    # temp <- isolate( numeroReactivos$y )
+    # numeroReactivos$y = temp + nrow(tablita)
+    # numeroReactivos$x <- temp
+    datos <- datos %>%
+      mutate(
+        Acciones =  inputs
+      )
+    
+    
+    temp <- isolate( numeroReactivos$y )
+    isolate({ numeroReactivos$y = temp + nrow(datos) })
+    isolate({  numeroReactivos$x <- temp })
+    
+    
+    if(isolate(numeroReactivos$x) == 0){
+      escribirReactivos( lon = isolate(numeroReactivos$y) )
+    }else{
+      escribirReactivos( ini = isolate(numeroReactivos$x),  lon = isolate(numeroReactivos$y) )
+    }
+    
+    
+    a <- DT::datatable( datos, escape = F, 
+                        options = opciones_tablas, class = "display" )
+    if( length( calculos ) > 0 ){
+      a %>% 
+        DT::formatCurrency(metricas_currency, currency = "Q") %>%
+        DT::formatPercentage(ncol(datos) - 1, digits = 2 )
+    }else{
+      a %>%
+        DT::formatCurrency(metricas_currency, currency = "Q") 
+      
+    }
+  })
+  
 # OBSERVE EVENTS ----------------------------------------------------------
 
 # En esta sección van todos los observe events 
@@ -563,37 +663,6 @@ shinyServer(function(input, output, session) {
                push(jerarquia_institucional_ida, paste0("'",filtro, "'") )
                jerarquia_institucional_ida <<- jerarquia_institucional_ida
                jerarquia_institucional_regreso <<- jerarquia_institucional_regreso
-               # if ( !is.empty(jerarquia_institucional_regreso) ){
-               #   filtro = pop(jerarquia_institucional_regreso)
-               #   push(jerarquia_institucional_ida, paste0("'",filtro, "'") )  
-               # }else{
-               #   return(-1)
-               # }
-               # nivel = valores_institucional[length(valores_institucional)]
-               # if( is.null(nivel) || trimws(nivel) == "" ){
-               #   shinyjs::hide("atrasTM")
-               #   temp <- datos_intitucional %>%
-               #     select_(filtro, "Devengado") %>%
-               #     group_by_(filtro) %>%
-               #     summarise(Devengado = sum(Devengado)) 
-               # }else{
-               #   shinyjs::show("atrasTM")
-               #   va <- app.env$nivelActivo
-               #   temp <- datos_intitucional %>%
-               #     select_(app.env$nivelActivo,  filtro, "Devengado") %>%
-               #     filter_( .dots = paste0(app.env$nivelActivo, "=='", nivel, "'")  ) %>%
-               #     group_by_(filtro) %>%
-               #     summarise(Devengado = sum(Devengado))
-               # }
-               # 
-               # if(nrow(temp) >1 ){
-               #   jerarquia_institucional_ida <<- jerarquia_institucional_ida
-               #   jerarquia_institucional_regreso <<- jerarquia_institucional_regreso
-               #   app.env$nivelActivo = filtro  
-               # }else{
-               #   return(NULL)
-               # }
-               
              }, 
              'Finalidad' = {
                filtro = pop(jerarquia_finalidad_ida)
@@ -705,99 +774,22 @@ shinyServer(function(input, output, session) {
     tryCatch({
       
       withProgress(message ='Leyendo la información', value = 0, {
-        datos_tabla <<- as.data.frame(fread(paste0("Data/",nombre_tablas, input$year,'.csv'), sep = ';'))
-        jerarquia_dimension_regreso = list()  #cambio de estructura de datos
-        jerarquia_valor_dimension_regreso = list() #antes era lifo, se pasa a lista
-        tabla_temporal <<- NULL
-        tabla_dinamica <<- NULL
+        datos_principales$data = fread(paste0("Data/",nombre_tablas, input$year,'.csv'), sep = ';')
+        datos_principales$jerarquia_dimension_regreso = list()  #cambio de estructura de datos
+        datos_principales$jerarquia_valor_dimension_regreso = list() #antes era lifo, se pasa a lista
         
-        if(input$year %in% c('2004','2005','2006','2007') && aplicacion == 'gasto'){
-          opciones_filtro_inicio <<- list( 
-            "Entidad",
-            "Finalidad",
-            "Región",
-            "Grupo",
-            "Económico Nivel 1" 
-          )
-          
-          mascara_filtro_inicio <<- list(
-            "Institución",
-            "Finalidad",
-            "Clasificación Geográfica",
-            "Objeto del gasto" ,
-            "Económico del gasto" 
-          )
-        }else{
-          if( aplicacion == "gasto" ){
-            opciones_filtro_inicio <- list("Sub Grupo", 
-                                           "Entidad",
-                                           "Finalidad",
-                                           "Región",
-                                           "Grupo",
-                                           "Económico Nivel 1" 
-            )
-            
-            mascara_filtro_inicio <- list("Sub grupo (Institucional)",
-                                          "Institución",
-                                          "Finalidad",
-                                          "Clasificación Geográfica",
-                                          "Objeto del gasto" ,
-                                          "Económico del gasto" 
-            )
-          }
-          
-        }
+        
+    
+        gasto_tabla()
         
       }) 
       
       
       
-      datos = gasto_tabla() %>%
-        mutate(
-          Acciones =  as.character(dropdownButton( icon = icon("gear"), right = T, checkboxGroupButtons(
-            inputId = paste0("btFiltroN",1+numeroReactivos$y),
-            choiceNames =  mascara_filtro_inicio, choiceValues = opciones_filtro_inicio, direction = "vertical") ) )  
-        )
+
       
-      temp <- isolate( numeroReactivos$y )
-      numeroReactivos$y = temp + 1
-      numeroReactivos$x <- temp
       
-      output$tabla <- DT::renderDataTable({
-        a <- DT::datatable( datos, escape = F, 
-                            options = list(orderClasses = TRUE,
-                                           dom = 'Bfrtip',
-                                           searching = TRUE,
-                                           # scrollCollapse = TRUE,
-                                           rownames = FALSE,
-                                           scroller = TRUE,
-                                           scrollX = TRUE,
-                                           scrollY = "500px",
-                                           fixedHeader = TRUE,
-                                           class = 'cell-border stripe',
-                                           dom = 'tB',
-                                           buttons = c('copy', 'csv', 'excel', 'pdf'),
-                                           fixedColumns = list(
-                                             leftColumns = 3,
-                                             heightMatch = 'none'),
-                                           language = list(url = '//cdn.datatables.net/plug-ins/1.10.11/i18n/Spanish.json'
-                                           ),
-                                           preDrawCallback=JS('function() { Shiny.unbindAll(this.api().table().node()); }'),
-                                           drawCallback=JS('function() { Shiny.bindAll(this.api().table().node()); } ')   ), class = "display" )
-        if( length( calculos ) > 0 ){
-          a <- a %>% 
-            DT::formatCurrency(metricas_currency, currency = "Q") %>%
-            DT::formatPercentage(ncol(datos) - 1, digits = 2 )
-        }else{
-          a <-  a %>%
-            DT::formatCurrency(metricas_currency, currency = "Q") 
-          
-        }
-        tabla_inutil <<- a
-      })
-      if(isolate(numeroReactivos$x) == 0){
-        escribirReactivos( lon = isolate(numeroReactivos$y) )
-      }
+
       
       output$`grafica-inicio` <- renderPlotly({
         if(aplicacion == 'gasto'){
@@ -837,7 +829,8 @@ shinyServer(function(input, output, session) {
       
       
       
-    }, error = function(e){ 
+    }, error = function(e){
+      print(e)
       showModal(modalDialog(
         title = "Error",
         "No se pudo cargar el conjunto de datos, intente más tarde", footer = modalButton("Continuar"), easyClose = T
@@ -1344,11 +1337,12 @@ shinyServer(function(input, output, session) {
       
       if(length(length(lista_filtros[[1]])) > 0 )
         updateRadioButtons(session,"opcionTabla", choiceNames  = lista_filtros[2], choiceValues = lista_filtros[1], inline = T) 
-      return(lista_filtros)
+      #return(lista_filtros)
+      datos_principales$val_filtros <- lista_filtros
     }else{
       updateRadioButtons(session,"opcionTabla", choiceNames = mascara_filtro_inicio, choiceValues =  opciones_filtro_inicio, inline = T) 
-      
-      return(list(opciones_filtro_inicio,mascara_filtro_inicio))
+      datos_principales$val_filtros <- list( opciones_iniciales$opciones_filtro_inicio, opciones_iniciales$mascara_filtro_inicio )
+      #return(list(opciones_filtro_inicio,mascara_filtro_inicio))
     }
     
   }  
@@ -1387,7 +1381,7 @@ shinyServer(function(input, output, session) {
       
       
     }else{
-      resultado <- tabla_temporal[var, "Concepto"] 
+      resultado <- datos_principales$tabla_temporal[var, "Concepto"] 
       if(resultado == Concepto[[1]]){
         codigo = as.character( tabla_parejamientos[tabla_parejamientos$nombres_reales == filtro,][[3]] )
         temporal <- datos_tabla %>%
@@ -1422,7 +1416,7 @@ shinyServer(function(input, output, session) {
         
         
       }else{
-        col <- as.character(tabla_temporal$Concepto[variable] )
+        col <- as.character(datos_principales$tabla_temporal$Concepto[variable] )
         dimension_actual <- dimension_ida
         .dots <- list(interp(~y==x, .values = list( y = as.name(dimension_actual), x = col ) ))
         tabla_dinamica <<- tabla_dinamica %>%
@@ -1483,9 +1477,9 @@ shinyServer(function(input, output, session) {
       temporal <- temporal[order(-temporal$Devengado),]  
     }
     
-    tabla_temporal <<- temporal
-    
-    return( temporal )
+
+    datos_principales$tabla_temporal <- temporal
+
   }
 
   
@@ -1599,7 +1593,6 @@ shinyServer(function(input, output, session) {
   obtenerListaFiltros <- function( valores ){
     listaExclusion <- NULL
     nombres <- names(valores)
-    #View(nombres)
     
     a <- lapply(jerarquias, function(x,y){
       a <- length(x) - 1
@@ -1643,50 +1636,22 @@ shinyServer(function(input, output, session) {
   
   hacerTabla <- function( filtro,variable ){
     tablita <- gasto_tabla(filtro, variable)
-    val_filtros = actualizarFiltro(filtro)
-    inputs <- character( nrow(tablita) )
-    for( i in seq_len(nrow(tablita)) ){
-      print(  paste("Haciendo el botón:", paste0("btFiltroN",i+numeroReactivos$y)) )
-      inputs[i] <- as.character(dropdownButton( icon = icon("gear"), right = T, checkboxGroupButtons(
-        inputId = paste0("btFiltroN",i+numeroReactivos$y), 
-        choiceNames  =  val_filtros[[2]], choiceValues = val_filtros[[1]] , direction = "vertical") ) )  
-    }
-    temp <- isolate( numeroReactivos$y )
-    numeroReactivos$y = temp + nrow(tablita)
-    numeroReactivos$x <- temp
-    datos <- as.data.frame( tablita ) %>%
-      mutate( 
-        Acciones =  inputs
-      )
-    output$tabla <- DT::renderDataTable({ 
-      tabla_inutil <<- a <- DT::datatable( datos, escape = F, 
-                                           options = list(orderClasses = TRUE,
-                                                          dom = 'Bfrtip',
-                                                          searching = TRUE,
-                                                          # scrollCollapse = TRUE,
-                                                          rownames = FALSE,
-                                                          scroller = TRUE,
-                                                          scrollX = TRUE,
-                                                          scrollY = "500px",
-                                                          fixedHeader = TRUE,
-                                                          buttons = c('copy', 'csv', 'excel', 'pdf'),
-                                                          class = 'cell-border stripe',
-                                                          fixedColumns = list(
-                                                            leftColumns = 3,
-                                                            heightMatch = 'none'),
-                                                          language = list(url = '//cdn.datatables.net/plug-ins/1.10.11/i18n/Spanish.json'),
-                                                          preDrawCallback=JS('function() { Shiny.unbindAll(this.api().table().node()); }'),
-                                                          drawCallback=JS('function() { Shiny.bindAll(this.api().table().node()); } ')   ) )
-      if( length( calculos ) > 0 ){
-        a <- a %>%
-          DT::formatCurrency(metricas_currency, currency = "Q") %>%
-          DT::formatPercentage(ncol(datos) - 1, digits = 2 )
-      }else{
-        a <- a %>%
-          DT::formatCurrency(metricas_currency, currency = "Q") 
-      }
-      tabla_inutil <<- a
-    })
+    actualizarFiltro(filtro)
+    # inputs <- character( nrow(tablita) )
+    # for( i in seq_len(nrow(tablita)) ){
+    #   print(  paste("Haciendo el botón:", paste0("btFiltroN",i+numeroReactivos$y)) )
+    #   inputs[i] <- as.character(dropdownButton( icon = icon("gear"), right = T, checkboxGroupButtons(
+    #     inputId = paste0("btFiltroN",i+numeroReactivos$y), 
+    #     choiceNames  =  val_filtros[[2]], choiceValues = val_filtros[[1]] , direction = "vertical") ) )  
+    # }
+    # temp <- isolate( numeroReactivos$y )
+    # numeroReactivos$y = temp + nrow(tablita)
+    # numeroReactivos$x <- temp
+    # datos <- as.data.frame( tablita ) %>%
+    #   mutate( 
+    #     Acciones =  inputs
+    #   )
+
     
     
     
