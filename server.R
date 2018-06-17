@@ -97,11 +97,10 @@ shinyServer(function(input, output, session) {
        rownames = FALSE,
        scroller = TRUE,
        scrollX = TRUE,
-       scrollY =  "200px",
+       scrollY =  "400px",
        fixedHeader = TRUE,
        class = 'cell-border stripe',
        dom = 'tB',
-       buttons = c('copy', 'csv', 'excel', 'pdf'),
        fixedColumns = list(
          leftColumns = 3,
          heightMatch = 'none'),
@@ -147,7 +146,8 @@ shinyServer(function(input, output, session) {
                                       jerarquia_dimension_regreso = NULL,
                                       jerarquia_valor_dimension_regreso = NULL, 
                                       tabla_temporal = NULL,
-                                      val_filtros = NULL
+                                      val_filtros = NULL,
+                                      columnas = NULL
                                       )
   
   opciones_iniciales <- reactiveValues(opciones_filtro_inicio = NULL,
@@ -463,82 +463,88 @@ shinyServer(function(input, output, session) {
   
   #Render para hacer la gráfica que acompaña a la tabla
   output$grafica <- renderPlotly({
-    numeroReactivos$y
+    #numeroReactivos$y
     s <- input$tabla_rows_selected
     tipo = ""
-    if(nrow(tabla_temporal) < 20 ){
+ 
+    
+    tabla_temporal2 <-  datos_principales$tabla_temporal
+    #tabla_temporal <-  as.data.frame( tabla_temporal )
+    if(nrow(tabla_temporal2) < 20 ){
       tipo = 'bar'
     }else{
       tipo = 'scatter'
     }
     
-    tabla_temporal$Concepto <- factor(tabla_temporal$Concepto, levels = tabla_temporal[["Concepto"]])
     
+    #tabla_temporal2$Concepto <- factor(tabla_temporal2$Concepto, levels = tabla_temporal2[["Concepto"]])
+ 
+  ejeY = "Devengado"
+   if(aplicacion == "gasto"){
+     ejeY = input$metrica_grafica
+   }
+       
     if (is.null(s)) {
       
-      p <- tabla_temporal %>%
-        plot_ly(x = ~Concepto, y = ~Devengado, mode = "markers", color = I(color_fuerte), name = 'Concepto', type = tipo , text = paste("Q",formatC(tabla_temporal$Devengado,format = "f", big.mark = ",", digits = 1) ) ) %>%
+      p <- tabla_temporal2 %>%
+        plot_ly(x = ~Concepto, y = ~get(ejeY), mode = "markers", color = I(color_fuerte), name = 'Concepto', type = tipo , text = if( aplicacion == "gasto" ){ 
+          if( input$metrica_grafica == "Devengado" ){
+            paste("Q",formatC(tabla_temporal2[[input$metrica_grafica]],format = "f", big.mark = ",", digits = 1 ) )
+          }else{
+            paste0( round(tabla_temporal2[[input$metrica_grafica]]*100,2)  , "%" )
+          }
+          
+          }else{
+            paste("Q",formatC(tabla_temporal2[[input$metrica_grafica]],format = "f", big.mark = ",", digits = 1 ) )
+          } ) %>%
         layout(xaxis = list(showticklabels = FALSE) ,showlegend = T) %>% 
         highlight("plotly_selected", color = I(color_fuerte), selected = attrs_selected(name = 'Sel'))
     } else{
-      pp <- tabla_temporal %>%
+      pp <- tabla_temporal2 %>%
         plot_ly() %>%
-        add_trace(x = ~Concepto, y = ~Devengado, mode = "markers", color = I(color_fuerte), name = 'Concepto', type = tipo ) 
+        add_trace(x = ~Concepto, y = ~get(ejeY), mode = "markers", color = I(color_fuerte), name = 'Concepto', type = tipo ) 
       # selected data
       print(s)
       # selected data
-      pp <- add_trace(pp, data = tabla_temporal[s, , drop = F], x = ~Concepto, y = ~Devengado, mode = "markers",
-                      color = I(color_debil), name = 'Selección', text = paste("Q",formatC(tabla_temporal[s, , drop = F]$Devengado,format = "f", big.mark = ",", digits = 1) ) )%>%
+      pp <- add_trace(pp, data = tabla_temporal2[s, , drop = F], x = ~Concepto, y = ~Devengado, mode = "markers",
+                      color = I(color_debil), name = 'Selección', text = paste("Q",formatC(tabla_temporal2[s, , drop = F]$Devengado,format = "f", big.mark = ",", digits = 1) ) )%>%
         layout( xaxis = list(showticklabels = FALSE), showlegend = T, barmode = "overlay")
       
     }
-    #   datos <- tabla_temporal
-    #   datos[-s, "Devengado"] =0
-    #   print(datos)
-    #   tabla_temporal$Devengado1 = datos$Devengado
-    #   print(tabla_temporal)
-    #   pp <- plot_ly(data = tabla_temporal, x = ~Concepto,  y = ~Devengado,
-    #                   color = I('#c6c3ff'), name = 'Concepto') %>%
-    #     add_trace( y = ~Devengado1, name = "Selección") %>%
-    #     layout(yaxis = list(title = 'Devengado'),barmode = 'stack', showlegend = T )
-    # }
-    
   })
   
   
   #Render para hacer la gráfica comparativa
   output$grafCon <- renderPlotly({
     temp <- datos_comparativos$data
-    
+    print(temp)
     tipo = ""
-    if(nrow(tabla_temporal) < 20 ){
-      tipo = 'bar'
-    }else{
-      tipo = 'scatter'
-    }
     
     
-    
-    
-    if (is.null(temp)) {
-      
-      p <- tabla_temporal %>%
-        plot_ly(x = ~Concepto, y = ~Devengado, mode = "markers", color = I(color_debil), name = 'Concepto', type = tipo, text = paste("Q",formatC(tabla_temporal$Devengado,format = "f", big.mark = ",", digits = 1) ) ) %>%
-        layout(xaxis = list(showticklabels = FALSE) ,showlegend = T) %>% 
-        highlight("plotly_selected", color = I(color_fuerte), selected = attrs_selected(name = 'Filtered'))
-    } else{
+    tryCatch({
       if(nrow(temp) < 20 ){
         tipo = 'bar'
       }else{
         tipo = 'scatter'
       }
-      
+    }, error = function(e){
+      print(e)
+    })
+    
+    if( !is.null( temp ) ){
       p <- plot_ly(temp, x = ~Concepto, y = ~Devengado.y, name = paste("Devengado", input$yearCom), color = I(color_debil), type = tipo ) %>%
         add_trace(y = ~Devengado.x, name = paste("Devengado", input$year), color = I(color_fuerte)) %>%
         layout(yaxis = list(title = 'Count'))
+    }else{
+      plotly_empty()
+      }
+
+    
+   
+
       
       
-    }
+  
     
   })
   
@@ -579,8 +585,9 @@ shinyServer(function(input, output, session) {
     
       if(  is.null(datos_principales$val_filtros[[1]])  ){
         #Construcción de los filtros
-        columnas <- datos_principales$data[, sapply( datos_principales$data, Negate( is.numeric ) ), with = FALSE ]
-        a = obtenerListaFiltros(columnas)
+        datos_principales$columnas <- datos_principales$data[, sapply( datos_principales$data, Negate( is.numeric ) ), with = FALSE ]
+        a = obtenerListaFiltros( datos_principales$columnas ) 
+        datos_principales$columnas <-names(datos_principales$columnas)
         opciones_iniciales$opciones_filtro_inicio <- a[[1]]
         opciones_iniciales$mascara_filtro_inicio <- a[[2]]
         datos_principales$val_filtros <- list(a[[1]], a[[2]])
@@ -597,7 +604,7 @@ shinyServer(function(input, output, session) {
     
     inputs <- character( nrow( datos ) )
     for( i in seq_len(nrow( datos )) ){
-      print(  paste("Haciendo el botón:", paste0("btFiltroN",i + isolate( numeroReactivos$y )  )) )
+      #print(  paste("Haciendo el botón:", paste0("btFiltroN",i + isolate( numeroReactivos$y )  )) )
       inputs[i] <- as.character(dropdownButton( icon = icon("gear"), right = T, checkboxGroupButtons(
         inputId = paste0("btFiltroN",i+ isolate( numeroReactivos$y )  ),
         choiceNames  =  mascara, choiceValues = valores  , direction = "vertical") ) )
@@ -605,10 +612,18 @@ shinyServer(function(input, output, session) {
     # temp <- isolate( numeroReactivos$y )
     # numeroReactivos$y = temp + nrow(tablita)
     # numeroReactivos$x <- temp
-    datos <- datos %>%
-      mutate(
-        Acciones =  inputs
-      )
+
+    
+    acciones = 'Acciones'
+    
+    datos <- as.data.table( datos )
+    
+    datos <- datos[ , (acciones) := inputs]
+       
+    # datos <- datos %>%
+    #   mutate(
+    #     Acciones =  inputs
+    #   )
     
     
     temp <- isolate( numeroReactivos$y )
@@ -618,9 +633,10 @@ shinyServer(function(input, output, session) {
     
     if(isolate(numeroReactivos$x) == 0){
       escribirReactivos( lon = isolate(numeroReactivos$y) )
-    }else{
-      escribirReactivos( ini = isolate(numeroReactivos$x),  lon = isolate(numeroReactivos$y) )
     }
+    # else{
+    #   escribirReactivos( ini = isolate(numeroReactivos$x),  lon = isolate(numeroReactivos$y) )
+    # }
     
     
     a <- DT::datatable( datos, escape = F, 
@@ -867,62 +883,17 @@ shinyServer(function(input, output, session) {
   
   observeEvent(input$retroceder_tabla, {
     lista <- construirTablaDinamica()
-    tablita <- lista[[1]]
+    datos_principales$tabla_temporal <- setDF( lista[[1]] )
     filtro <- as.character(lista[[2]])
-    if(length(jerarquia_dimension_regreso) == 0){
-      val_filtros = list(opciones_filtro_inicio, mascara_filtro_inicio)   
-    }else{
-      val_filtros = actualizarFiltro(filtro)
-    }
+    # if(length(jerarquia_dimension_regreso) == 0){
+    #   val_filtros = list(opciones_filtro_inicio, mascara_filtro_inicio)   
+    # }else{
+    #   val_filtros = actualizarFiltro(filtro, retroceder = T)
+    # }
     
-    inputs <- character( nrow(tablita) )
-    for( i in seq_len(nrow(tablita)) ){
-      print(  paste("Haciendo el botón:", paste0("btFiltroN",i+numeroReactivos$y)) )
-      inputs[i] <- as.character(dropdownButton( icon = icon("gear"), right = T, checkboxGroupButtons(
-        inputId = paste0("btFiltroN",i+numeroReactivos$y), 
-        choiceNames = val_filtros[[2]], choiceValues = val_filtros[[1]], direction = "vertical") ) )  
-    }
-    temp <- isolate( numeroReactivos$y )
-    numeroReactivos$y = temp + nrow(tablita)
-    numeroReactivos$x <- temp
-    datos <- as.data.frame( tablita ) %>%
-      mutate( 
-        Acciones =  inputs
-      )
+    actualizarFiltro(filtro, retroceder = T)
     
-    
-    output$tabla <- DT::renderDataTable({
-      a <- DT::datatable( datos, escape = F, 
-                          list(orderClasses = TRUE,
-                               searching = TRUE,
-                               dom = 'Bfrtip',
-                               # scrollCollapse = TRUE,
-                               rownames = FALSE,
-                               scroller = TRUE,
-                               scrollX = TRUE,
-                               scrollY = "500px",
-                               fixedHeader = TRUE,
-                               class = 'cell-border stripe',
-                               buttons = c('copy', 'csv', 'excel', 'pdf'),
-                               fixedColumns = list(
-                                 leftColumns = 3,
-                                 heightMatch = 'none'),
-                               language = list(url = '//cdn.datatables.net/plug-ins/1.10.11/i18n/Spanish.json'),
-                               preDrawCallback=JS('function() { Shiny.unbindAll(this.api().table().node()); }'),
-                               drawCallback=JS('function() { Shiny.bindAll(this.api().table().node()); } ')   ) )%>%
-        DT::formatCurrency(metricas_currency, currency = "Q") 
-      if( length( calculos ) > 0 ){
-        a <- a %>%
-          DT::formatCurrency(metricas_currency, currency = "Q") %>%
-          DT::formatPercentage(ncol(datos) - 1, digits = 2 )
-      }else{
-        a <- a %>%
-          DT::formatCurrency(metricas_currency, currency = "Q") 
-        
-      }
-      tabla_inutil <<- a
-    })
-    #obtenerArbol()
+
     
     
     
@@ -1102,46 +1073,8 @@ shinyServer(function(input, output, session) {
   observeEvent(input$comparador_tabla, {
     tabla_temp <- NULL
     tryCatch({
-      
-      
-      
-      if( length(jerarquia_dimension_regreso  )  == 0 ){
-        tabla_temp <- datos_tabla_con %>%
-          summarise( Devengado = sum(Devengado) )%>%
-          mutate(Concepto = Concepto[[1]])
-      }else{
-        jerarquia_dimension_regreso <- c(jerarquia_dimension_regreso,dimension_ida)
-        jerarquia_valor_dimension_regreso <- c(jerarquia_valor_dimension_regreso, "PlaceHolder")
-        contador <- 2:length(jerarquia_dimension_regreso)
-        for(z in  contador ){
-          a <- jerarquia_dimension_regreso[[z]]
-          b <- jerarquia_valor_dimension_regreso[[z]]
-          .dots <- list(interp( ~y==x, .values = list( y = as.name(jerarquia_dimension_regreso[[z]] ), x = jerarquia_valor_dimension_regreso[[z]] ) ) )
-          if( z == length(jerarquia_dimension_regreso) ) {
-            if( z == 2 ){
-              tabla_temp <- datos_tabla_con %>%
-                group_by_( as.name(jerarquia_dimension_regreso[[z]]) ) %>%
-                summarise( Devengado = sum(Devengado) ) %>%
-                rename_(Concepto = as.name(jerarquia_dimension_regreso[[z]]) )
-              dimension_ida <<- jerarquia_dimension_regreso[[z]]
-            }else{
-              tabla_temp <- tabla_temp %>%
-                group_by_( as.name(jerarquia_dimension_regreso[[z]]) ) %>%
-                summarise( Devengado = sum(Devengado) ) %>%
-                rename_(Concepto = as.name(jerarquia_dimension_regreso[[z]])  )
-              dimension_ida <<- jerarquia_dimension_regreso[[z]]
-            }
-          }else if( z == 2 ){
-            tabla_temp <- datos_tabla_con %>%
-              filter_(.dots = .dots)
-          }else{
-            tabla_temp <- tabla_temp %>%
-              filter_(.dots = .dots)
-          }
-        }
-      }
-      # names(tabla_temp) = sub('Devengado', paste("Devengado", input$yearCom), names(tabla_temp))
-      # 
+    a <- construirTablaDinamica(paso_anterior = F)       
+
       tabla_temporal <- tabla_temporal[,c("Concepto","Devengado")]
       
       tabla_temp <- tabla_temp[,c("Concepto","Devengado")]
@@ -1307,28 +1240,39 @@ shinyServer(function(input, output, session) {
 
   # Función útil para la actulización de filtros
   
-  actualizarFiltro <-  function(filtro="") {
-    if( !is.null( tabla_dinamica )  ){
+  actualizarFiltro <-  function(filtro="", retroceder = F) {
+    if( !is.null( datos_principales$columnas )  ){
       
-      valores_filtros <- sapply(colnames(tabla_dinamica),function( x ){
-        y <- tabla_dinamica[,x] 
-        if( !is.numeric(y) ){
-          y <- as.factor( as.character(y) )
-          if( nlevels(y) >  1  ){
-            return(x)
-          }
-        }
-      })
+      # valores_filtros <- sapply(colnames(tabla_dinamica),function( x ){
+      #   y <- tabla_dinamica[,x] 
+      #   if( !is.numeric(y) ){
+      #     y <- as.factor( as.character(y) )
+      #     if( nlevels(y) >  1  ){
+      #       return(x)
+      #     }
+      #   }
+      # })
       
       
+
+      valores_filtros <- as.list( datos_principales$columnas )
       
-      valores_filtros <- plyr::compact(valores_filtros)
-      
-      if (exists("filtro")) {
-        valores_filtros <- valores_filtros[valores_filtros != filtro]
+      if( retroceder == T ){
+        datos_principales$columnas <- c(filtro, datos_principales$columnas) 
+        valores_filtros <- as.list( datos_principales$columnas )
       }else{
-        valores_filtros <- valores_filtros[valores_filtros != dimension_ida]
+        if (exists("filtro")) {
+          valores_filtros <- valores_filtros[valores_filtros != filtro]
+        }else{
+          valores_filtros <- valores_filtros[valores_filtros != dimension_ida]
+        }
       }
+      
+
+
+      
+            
+      
       
       lista_filtros <- obtenerListaFiltros(valores_filtros)
       
@@ -1339,9 +1283,12 @@ shinyServer(function(input, output, session) {
         updateRadioButtons(session,"opcionTabla", choiceNames  = lista_filtros[2], choiceValues = lista_filtros[1], inline = T) 
       #return(lista_filtros)
       datos_principales$val_filtros <- lista_filtros
+      if( retroceder == F  )
+        datos_principales$columnas <- datos_principales$columnas[ datos_principales$columnas != filtro ]
     }else{
       updateRadioButtons(session,"opcionTabla", choiceNames = mascara_filtro_inicio, choiceValues =  opciones_filtro_inicio, inline = T) 
       datos_principales$val_filtros <- list( opciones_iniciales$opciones_filtro_inicio, opciones_iniciales$mascara_filtro_inicio )
+
       #return(list(opciones_filtro_inicio,mascara_filtro_inicio))
     }
     
@@ -1365,19 +1312,19 @@ shinyServer(function(input, output, session) {
     
     var <-  variable
     temporal <- NULL
+    datos_tabla <- datos_principales$data
     if( is.null(var) || var == '' ){
-      temp <- datos_tabla %>%
-        summarise_at(metricas, sum)
+      temp <- datos_tabla[ , lapply( .SD , sum, na.rm = TRUE), .SDcols = metricas   ]
+      print(temp)
       
       if(length(calculos) > 0){
-        temp <- temp %>%
-          mutate_(.dots = setNames(.dots1,"Ejecutado"))
+        temp <- temp[ , Ejecutado := Devengado / Vigente ]
       }
       
       
       
-      temporal <- cbind.data.frame(setNames(Concepto,"Concepto" ), temp)
-      
+      temporal <- data.table(Concepto = Concepto , temp)
+
       
       
     }else{
@@ -1410,7 +1357,7 @@ shinyServer(function(input, output, session) {
         #push(jerarquia_dimension_regreso,filtro)
         jerarquia_dimension_regreso <- c(jerarquia_dimension_regreso,filtro)
         #push(jerarquia_valor_dimension_regreso,"")
-        jerarquia_valor_dimension_regreso <- "NADA"
+        #jerarquia_valor_dimension_regreso <- "NADA"
         
         
         
@@ -1444,7 +1391,7 @@ shinyServer(function(input, output, session) {
         
         dimension_ida <<- filtro # quizás lo correcto es filtro actualmente es dimension_actual
         #push(jerarquia_dimension_regreso, dimension_actual)
-        jerarquia_dimension_regreso <- c(jerarquia_dimension_regreso, dimension_actual)
+        jerarquia_dimension_regreso <- c(jerarquia_dimension_regreso, filtro)
         valor_dimension <<- col
         #push(jerarquia_valor_dimension_regreso, col)
         jerarquia_valor_dimension_regreso <- c(jerarquia_valor_dimension_regreso, col)
@@ -1490,11 +1437,12 @@ shinyServer(function(input, output, session) {
   # Función para reconstruir la tabla dinámica
   # Requiere restructuración
   
-  construirTablaDinamica <- function(){
+  construirTablaDinamica <- function(paso_anterior = T){
+    
     tabla_temp <- NULL
     if( length(jerarquia_dimension_regreso  )  == 1 ){
       
-      temporal <- datos_tabla %>%
+      temporal <- datos_principales$data %>%
         summarise_at(metricas, sum)
       
       if(length(calculos) > 0){
@@ -1510,78 +1458,69 @@ shinyServer(function(input, output, session) {
       tabla_temp <- temporal
       
     }else{
-      contador <- 2:length(jerarquia_dimension_regreso)
-      for(z in  contador ){
-        a <- jerarquia_dimension_regreso[[z]]
-        b <- jerarquia_valor_dimension_regreso[[z]]
-        .dots <- list(interp( ~y==x, .values = list( y = as.name(jerarquia_dimension_regreso[[z]] ), x = jerarquia_valor_dimension_regreso[[z]] ) ) )                      
-        if( z == length(jerarquia_dimension_regreso) ) {
-          codigo = as.character( tabla_parejamientos[tabla_parejamientos$nombres_reales == jerarquia_dimension_regreso[[z]],][[3]] )
-          if( z == 2 ){
-            tabla_dinamica <<- datos_tabla 
-            tabla_temp <- datos_tabla %>%
-              group_by_( as.name(codigo) , as.name(jerarquia_dimension_regreso[[z]]) ) %>%
-              summarise_at(metricas, sum)
-            
-            if(length(calculos) > 0){
-              tabla_temp <- tabla_temp %>%
-                mutate_(.dots = setNames(.dots1,"Ejecutado"))
-            }
-            if( jerarquia_dimension_regreso[[z]] == codigo ){
-              tabla_temp <- tabla_temp %>%
-                rename_(Concepto =  as.name(jerarquia_dimension_regreso[[z]]))
-            }else{
-              tabla_temp <- tabla_temp %>%
-                rename_(Concepto = as.name(jerarquia_dimension_regreso[[z]]), Código = as.name(codigo)  )
-            }
-            
-            
-            dimension_ida <<- jerarquia_dimension_regreso[[z]]
+      cadena_filtro = NULL
+      
+      if( paso_anterior == T){
+        lon <- length(jerarquia_valor_dimension_regreso) -1  
+      }else{
+        lon <- length(jerarquia_valor_dimension_regreso) 
+      }
+      
+      
+      if ( lon == 0 ) lon <- 1
+      contador <- 1:( lon )
+
+      if( lon == 1 ){
+        cadena_filtro  = paste0(cadena_filtro, jerarquia_dimension_regreso[[1]], '== ', "'", jerarquia_valor_dimension_regreso[[1]], "'")
+      }
+      else{
+        for(z in  contador ){
+          if( z != length(jerarquia_valor_dimension_regreso) -1  ){
+            cadena_filtro  = paste0(cadena_filtro,'`' ,jerarquia_dimension_regreso[[z]], '`' , '== ', "'", jerarquia_valor_dimension_regreso[[z]], "' & ")  
           }else{
-            tabla_dinamica <<- tabla_temp
-            tabla_temp <- tabla_temp %>%
-              group_by_( as.name(codigo), as.name(jerarquia_dimension_regreso[[z]]) ) %>%
-              summarise_at(metricas, sum)
-            
-            if(length(calculos) > 0){
-              tabla_temp <- tabla_temp %>%
-                mutate_(.dots = setNames(.dots1,"Ejecutado"))
-            }
-            
-            if( jerarquia_dimension_regreso[[z]] == codigo ){
-              tabla_temp <- tabla_temp %>%
-                rename_(Concepto = as.name(jerarquia_dimension_regreso[[z]]) )
-            }else{
-              tabla_temp <- tabla_temp %>%
-                rename_(Concepto = as.name(jerarquia_dimension_regreso[[z]]), Código = as.name(codigo) )
-            }
-            
-            # 
-            # tabla_temp <- tabla_temp %>%
-            #   rename_(Concepto = jerarquia_dimension_regreso[[z]], Código = codigo)
-            dimension_ida <<- jerarquia_dimension_regreso[[z]]
+            cadena_filtro  = paste0(cadena_filtro, '`' ,jerarquia_dimension_regreso[[z]], '`' ,'== ', "'", jerarquia_valor_dimension_regreso[[z]], "'")
           }
-        }else if( z == 2 ){
-          tabla_temp <- datos_tabla %>%
-            filter_(.dots = .dots)
-        }else{
-          tabla_temp <- tabla_temp %>%
-            filter_(.dots = .dots)
+          print(cadena_filtro)
+          
         }
       }
+      
+         
+
+      
+
+      codigo = as.character( tabla_parejamientos[tabla_parejamientos$nombres_reales == jerarquia_dimension_regreso[[ length(jerarquia_valor_dimension_regreso)   ]],][[3]] )
+      
+      
+      tabla_temp <- datos_principales$data[ eval( parse(text = cadena_filtro) ) ]
+      
+      agrupacion <- as.character( jerarquia_dimension_regreso[ lon + 1 ] )
+      
+      tabla_temp <- tabla_temp[ , lapply(.SD, sum, na.rm =  T), by= c(codigo, agrupacion)  , .SDcols=metricas ]
+      
+      colnames( tabla_temp )[colnames( tabla_temp )== eval( parse( text = paste0("'",  codigo, "'" ) ) ) ] <- "Código"
+      
+      colnames( tabla_temp )[colnames( tabla_temp )== eval( parse( text = paste0("'",  agrupacion, "'" ) ) ) ] <- "Concepto"
+      
+      if(paso_anterior == T ){
+        dimension_ida <<- agrupacion  
+      }
+      
     }
+    
     #tomando el valor del último elemento de dimension
     last_filt = jerarquia_dimension_regreso[length(jerarquia_dimension_regreso)]
     
     #Quitando el ultimo elemento
-    jerarquia_dimension_regreso <<- jerarquia_dimension_regreso[c(1:length(jerarquia_dimension_regreso) -1 )]
-    jerarquia_valor_dimension_regreso <<- jerarquia_valor_dimension_regreso[c(1:length(jerarquia_valor_dimension_regreso) -1 )]
-    #View(tabla_temp)
+    if(paso_anterior == T){
+      jerarquia_dimension_regreso <<- jerarquia_dimension_regreso[c(1:length(jerarquia_dimension_regreso) -1 )]
+      jerarquia_valor_dimension_regreso <<- jerarquia_valor_dimension_regreso[c(1:length(jerarquia_valor_dimension_regreso) -1 )]
+    }
+    
+    
     tabla_temp <- tabla_temp[order(-tabla_temp$Devengado),]
-    tabla_temporal <<- tabla_temp
     return(list(tabla_temp,last_filt))
-    #View(tabla_temporal)
-    #View(tabla_dinamica)
+
   }
   
   #Fin de contruir tabla dinámica
@@ -1593,6 +1532,10 @@ shinyServer(function(input, output, session) {
   obtenerListaFiltros <- function( valores ){
     listaExclusion <- NULL
     nombres <- names(valores)
+                     
+    if( is.null(nombres) ){
+      nombres <- valores
+    }
     
     a <- lapply(jerarquias, function(x,y){
       a <- length(x) - 1
@@ -1606,7 +1549,7 @@ shinyServer(function(input, output, session) {
     
     
     
-    nombres <- names(valores)[-which( names(valores) %in% listaExclusion )]
+    nombres <- nombres[-which( nombres %in% listaExclusion )]
     tempo_bonitos <- lapply(nombres, function(x){
       return( as.character( tabla_parejamientos[tabla_parejamientos$nombres_reales == x, ][[2]]))
     })

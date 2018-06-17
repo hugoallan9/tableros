@@ -59,6 +59,11 @@ dashboardPage(
               ),
               
               
+              if( tipo == "gasto")
+              fluidRow(
+                column(3, align = "left", radioButtons("metrica_grafica", "¿Qué desea graficar?", choiceValues = c("Ejecutado", "Devengado"), choiceNames = c("Porcentaje de ejecución", "Devengado"), inline = T ))
+              ),
+              
               
               fluidRow(
                 column(12, align ="center",
