@@ -1,0 +1,2 @@
+En parametros-server:
+* Se agregó la variable metricas_comparativas 

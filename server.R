@@ -93,14 +93,13 @@ shinyServer(function(input, output, session) {
 #Lista para las opciones de las tablas
   opciones_tablas <- list(orderClasses = TRUE,
        searching = TRUE,
+       pageLength = 5,
        # scrollCollapse = TRUE,
        rownames = FALSE,
        scroller = TRUE,
        scrollX = TRUE,
        scrollY =  "400px",
-       fixedHeader = TRUE,
        class = 'cell-border stripe',
-       dom = 'tB',
        fixedColumns = list(
          leftColumns = 3,
          heightMatch = 'none'),
@@ -273,7 +272,42 @@ shinyServer(function(input, output, session) {
 
 # ELEMENTOS RENDER --------------------------------------------------------
 
-
+#Render para gráfica de inicio
+  output$`grafica-inicio` <- renderPlotly({
+    if(aplicacion == 'gasto'){
+      temp <- datos_tabla %>%
+        select(Entidad,Devengado)%>%
+        group_by(Entidad) %>%
+        summarise(Devengado = sum(Devengado)) %>%
+        rename("Concepto" = Entidad)
+      
+    }else{
+      temp <- datos_tabla %>%
+        select(Clase,Devengado)%>%
+        group_by(Clase) %>%
+        summarise(Devengado = sum(Devengado)) %>%
+        rename("Concepto" = Clase)
+      
+    }
+    
+    
+    
+    temp <- temp[order(-temp$Devengado),]
+    temp$Concepto <- factor(temp$Concepto, levels = temp[["Concepto"]])
+    tabla_temporal$Concepto <- factor(tabla_temporal$Concepto, levels = tabla_temporal[["Concepto"]])
+    
+    
+    
+    
+    
+    
+    p <- temp %>%
+      plot_ly(x = ~Concepto, y = ~Devengado, mode = "markers", color = I(color_debil), name = 'Entidad', type = 'bar', text = paste("Q",formatC(temp$Devengado,format = "f", big.mark = ",", digits = 1) ) 
+      ) %>%
+      layout(xaxis = list(showticklabels = FALSE) ,showlegend = T) 
+    
+  })
+  
 # Definición de Render para detalle del gasto 
 
   output$detalle <- renderUI({
@@ -393,24 +427,24 @@ shinyServer(function(input, output, session) {
   
   # Render para el botón atrás que sirve para retroceder en las tablas
   
-  output$Atras <- renderUI({
-    actionButton("retroceder_tabla", icon = icon("glyphicon glyphicon-arrow-up", lib= "glyphicon"), label = "Nivel anterior")
-  })
+  # output$Atras <- renderUI({
+  #   actionButton("retroceder_tabla", icon = icon("glyphicon glyphicon-arrow-up", lib= "glyphicon"), label = "Nivel anterior")
+  # })
   
   # Render para el botón de comparador de años, el combobox
   output$comparadorAño <- renderUI({
-    selectInput("yearCom",label = HTML('<p style="color:black">Ejercicio Fiscal<p>'),choices = c(1998:format(Sys.Date(), "%Y")), selected = as.numeric( input$year ) -1 )  
+    selectInput("yearCom",label = HTML('<p style="color:black">Ejercicio Fiscal para comparación<p>'),choices = c(1998:format(Sys.Date(), "%Y")), selected = as.numeric( input$year ) -1 )  
   })
   
   # Render para el botón que elige la dimensión de comparación en las tablas
   output$dimension <- renderUI({
-    selectInput("dimension",label = 'Escoja la categoría',choices = NULL, selected = NULL )  
+    selectInput("dimension",label = 'Escoja una clasificación',choices = NULL, selected = NULL )  
   })
   
   # Render para el selectInput de valor de dimensión escogida para la dimensión de comparación
   
   output$`valor-dimension` <- renderUI({
-    selectInput("valor_dimension",label = 'Escoja el valor de la categoría',choices = NULL, selected = NULL)  
+    selectInput("valor_dimension",label = 'Escoja un elemento',choices = NULL, selected = NULL)  
   })
   
   # Render para botón de comparación
@@ -422,9 +456,7 @@ shinyServer(function(input, output, session) {
   # Render para el botón de comparar la tabla trabajada para el año principal con cualquier
   # otro año en particular
   
-  output$`boton-comparar-tabla` <- renderUI({
-    actionButton("comparador_tabla",HTML("Comparar resultados del </br>  módulo Tabla y gráfica") )
-  })
+
   
   # Render que dibuja el devengado en el tablero principal
   output$devengadoBox <- renderInfoBox({
@@ -446,6 +478,23 @@ shinyServer(function(input, output, session) {
   # Render que hace botón para regresar de nivel
   output$Avanzar <- renderUI({
     actionButton("avanzar_tabla", "Siguiente nivel")
+  })
+  
+  output$`texto-explicativo` <- renderText({
+    paste0("La gráfica y tabla muestran los datos correspondientes a <b> Ejercicio Fiscal <u>", input$year, "</u> </b> y <b>
+           Ejercicio Fiscal para comparación <u>", input$yearCom ,"</u></b>.")
+  })
+  
+  output$`actualizacion-texto` <- renderText({
+    paste0("Las datos comparados se dan en quetzales de cada año. &nbsp&nbsp.
+           </br> Actualizado a ", format(Sys.Date(), "%e de %B de %Y"), " a las 6:00 am. &nbsp&nbsp" 
+           )
+  })
+  
+  output$`actualizacion-texto-principal` <- renderText({
+    paste0("Las datos en moneda mostrados se dan en quetzales. &nbsp&nbsp.
+           </br> Actualizado a ", format(Sys.Date(), "%e de %B de %Y"), " a las 6:00 am. &nbsp&nbsp" 
+    )
   })
 
   #Render para el árbol
@@ -483,32 +532,74 @@ shinyServer(function(input, output, session) {
    if(aplicacion == "gasto"){
      ejeY = input$metrica_grafica
    }
-       
+  
+  if( is.null(input$metrica_grafica) ){
+    metrica = "Devengado"
+  }else{
+    metrica <- input$metrica_grafica  
+  }
+  
+  
+   tabla_temporal2[order( -tabla_temporal2[[metrica]] ),]  
+   levels(tabla_temporal2$Concepto) <- tabla_temporal2$Concepto
+  
+   tabla_temporal2$Concepto <- factor(tabla_temporal2$Concepto, levels = unique(tabla_temporal2$Concepto)[order(tabla_temporal2[[metrica]], decreasing = TRUE)])
+
+  
+  fac_division = 1
+  formato_eje = ".2%"
+  sufijo = ""
+  titulo = "Porcentaje de ejecución"
+  if(metrica == "Devengado"){
+    if( max( tabla_temporal2$Devengado ) > 10^6 ){
+      fac_division = 10^6
+      formato_eje = ",.3"
+      titulo = "Devengado en millones de quetzales"
+    }else{
+      titulo = "Devengado"
+      fac_division = 1
+      formato_eje = ",.3"
+    }
+  }  
+
+  
+  
     if (is.null(s)) {
-      
+      print(tabla_temporal2)
+      print( levels( tabla_temporal2$Concepto ) )
+
       p <- tabla_temporal2 %>%
-        plot_ly(x = ~Concepto, y = ~get(ejeY), mode = "markers", color = I(color_fuerte), name = 'Concepto', type = tipo , text = if( aplicacion == "gasto" ){ 
-          if( input$metrica_grafica == "Devengado" ){
-            paste("Q",formatC(tabla_temporal2[[input$metrica_grafica]],format = "f", big.mark = ",", digits = 1 ) )
+        plot_ly(x = ~Concepto, y = ~get(ejeY) / fac_division, mode = "markers", color = I(color_fuerte), name = 'Concepto', type = tipo , sort = F ,hoverinfo = "text" ,text = if( aplicacion == "gasto" ){ 
+          if( metrica == "Devengado" ){
+            paste(tabla_temporal2$Concepto, ": "  ,"Q",formatC(tabla_temporal2[[metrica]],format = "f", big.mark = ",", digits = 1 ) )
           }else{
-            paste0( round(tabla_temporal2[[input$metrica_grafica]]*100,2)  , "%" )
+            paste0( tabla_temporal2$Concepto, ": " ,round(tabla_temporal2[[metrica]]*100,2)  , "%" )
           }
           
           }else{
-            paste("Q",formatC(tabla_temporal2[[input$metrica_grafica]],format = "f", big.mark = ",", digits = 1 ) )
+            paste(tabla_temporal2$Concepto, ": "   , "Q",formatC( tabla_temporal2[[metrica]],format = "f", big.mark = ",", digits = 1 ) )
           } ) %>%
-        layout(xaxis = list(showticklabels = FALSE) ,showlegend = T) %>% 
+        layout(xaxis = list(showticklabels = FALSE) ,showlegend = T, yaxis = list(tickformat = formato_eje, ticksuffix = sufijo, title = titulo ) ) %>% 
         highlight("plotly_selected", color = I(color_fuerte), selected = attrs_selected(name = 'Sel'))
     } else{
       pp <- tabla_temporal2 %>%
         plot_ly() %>%
-        add_trace(x = ~Concepto, y = ~get(ejeY), mode = "markers", color = I(color_fuerte), name = 'Concepto', type = tipo ) 
+        add_trace(x = ~Concepto, y = ~get(ejeY)/fac_division, mode = "markers", color = I(color_fuerte), name = 'Concepto', type = tipo,hoverinfo = "text" ,text = if( aplicacion == "gasto" ){ 
+          if( metrica == "Devengado" ){
+            paste(tabla_temporal2$Concepto, ": "  ,"Q",formatC(tabla_temporal2[[metrica]],format = "f", big.mark = ",", digits = 1 ) )
+          }else{
+            paste0( tabla_temporal2$Concepto, ": " ,round(tabla_temporal2[[metrica]]*100,2)  , "%" )
+          }
+          
+        }else{
+          paste(tabla_temporal2$Concepto, ": "   , "Q",formatC( tabla_temporal2[[metrica]],format = "f", big.mark = ",", digits = 1 ) )
+        }  ) 
       # selected data
       print(s)
       # selected data
-      pp <- add_trace(pp, data = tabla_temporal2[s, , drop = F], x = ~Concepto, y = ~Devengado, mode = "markers",
+      pp <- add_trace(pp, data = tabla_temporal2[s, , drop = F], x = ~Concepto, y = ~get(ejeY)/fac_division, mode = "markers",
                       color = I(color_debil), name = 'Selección', text = paste("Q",formatC(tabla_temporal2[s, , drop = F]$Devengado,format = "f", big.mark = ",", digits = 1) ) )%>%
-        layout( xaxis = list(showticklabels = FALSE), showlegend = T, barmode = "overlay")
+        layout( xaxis = list(showticklabels = FALSE), showlegend = T, barmode = "overlay", yaxis = list(tickformat = formato_eje, ticksuffix = sufijo, title = titulo ))
       
     }
   })
@@ -519,6 +610,22 @@ shinyServer(function(input, output, session) {
     temp <- datos_comparativos$data
     print(temp)
     tipo = ""
+    
+    
+    fac_division = 1
+    formato_eje = ".2%"
+    sufijo = ""
+    titulo = "Porcentaje de ejecución"
+      if( max( temp$Devengado.y ) > 10^6 || max( temp$Devengado.x ) > 10^6 ){
+        fac_division = 10^6
+        formato_eje = ",.3"
+        titulo = "Devengado en millones de quetzales"
+      }else{
+        titulo = "Devengado"
+        fac_division = 1
+        formato_eje = ",.3"
+      }
+    
     
     
     tryCatch({
@@ -532,9 +639,10 @@ shinyServer(function(input, output, session) {
     })
     
     if( !is.null( temp ) ){
-      p <- plot_ly(temp, x = ~Concepto, y = ~Devengado.y, name = paste("Devengado", input$yearCom), color = I(color_debil), type = tipo ) %>%
-        add_trace(y = ~Devengado.x, name = paste("Devengado", input$year), color = I(color_fuerte)) %>%
-        layout(yaxis = list(title = 'Count'))
+      p <- plot_ly(temp, x = ~Concepto, y = ~Devengado.y/fac_division, name = paste("Devengado", input$yearCom), color = I(color_debil), type = tipo, hoverinfo = "x+text+name",
+                   text = paste("Q" ,format(temp$Devengado.y, big.mark = ",") ) ) %>%
+        add_trace(y = ~Devengado.x / fac_division, name = paste("Devengado", input$year), color = I(color_fuerte), text = paste("Q" ,format(temp$Devengado.x, big.mark = ",") )) %>%
+        layout(yaxis = list(title = titulo, tickformat = formato_eje, ticksuffix = sufijo), xaxis = list(showticklabels = FALSE) ,showlegend = T   )
     }else{
       plotly_empty()
       }
@@ -640,7 +748,7 @@ shinyServer(function(input, output, session) {
     
     
     a <- DT::datatable( datos, escape = F, 
-                        options = opciones_tablas, class = "display" )
+                        options = opciones_tablas, class = "display", selection = "single" )
     if( length( calculos ) > 0 ){
       a %>% 
         DT::formatCurrency(metricas_currency, currency = "Q") %>%
@@ -782,6 +890,9 @@ shinyServer(function(input, output, session) {
     
   })
   
+
+  
+  
   # Observe Event que se encarga de cargar la base y hacer la primera tablas, 
   # se debe considerar su restructuración, ya que los métodos de momento son muy ineficientes
   
@@ -793,7 +904,7 @@ shinyServer(function(input, output, session) {
         datos_principales$data = fread(paste0("Data/",nombre_tablas, input$year,'.csv'), sep = ';')
         datos_principales$jerarquia_dimension_regreso = list()  #cambio de estructura de datos
         datos_principales$jerarquia_valor_dimension_regreso = list() #antes era lifo, se pasa a lista
-        
+        datos_principales$val_filtros <- NULL
         
     
         gasto_tabla()
@@ -807,40 +918,7 @@ shinyServer(function(input, output, session) {
       
 
       
-      output$`grafica-inicio` <- renderPlotly({
-        if(aplicacion == 'gasto'){
-          temp <- datos_tabla %>%
-            select(Entidad,Devengado)%>%
-            group_by(Entidad) %>%
-            summarise(Devengado = sum(Devengado)) %>%
-            rename("Concepto" = Entidad)
-          
-        }else{
-          temp <- datos_tabla %>%
-            select(Clase,Devengado)%>%
-            group_by(Clase) %>%
-            summarise(Devengado = sum(Devengado)) %>%
-            rename("Concepto" = Clase)
-          
-        }
-        
-        
-        
-        temp <- temp[order(-temp$Devengado),]
-        temp$Concepto <- factor(temp$Concepto, levels = temp[["Concepto"]])
-        tabla_temporal$Concepto <- factor(tabla_temporal$Concepto, levels = tabla_temporal[["Concepto"]])
-        
-        
-        
-        
-        
-        
-        p <- temp %>%
-          plot_ly(x = ~Concepto, y = ~Devengado, mode = "markers", color = I(color_debil), name = 'Entidad', type = 'bar', text = paste("Q",formatC(temp$Devengado,format = "f", big.mark = ",", digits = 1) ) 
-          ) %>%
-          layout(xaxis = list(showticklabels = FALSE) ,showlegend = T) 
-        
-      })
+
       
       
       
@@ -864,7 +942,7 @@ shinyServer(function(input, output, session) {
       paste("data-", Sys.Date(), ".csv", sep="")
     },
     content = function(fname){
-      write.csv2(tabla_temporal,fname)
+      write.csv2(datos_principales$tabla_temporal,fname)
     }
   )
   
@@ -912,6 +990,7 @@ shinyServer(function(input, output, session) {
         select_if(Negate(is.numeric) ) %>%
         top_n(2)
       dimension <- names(dimension)
+      dimension <- intersect(dimension, metricas_comparativas)
       print( as.list(dimension)[[1]] )
       updateSelectInput(session = session,"dimension", choices = as.list(dimension), selected = as.list(dimension)[[1]] ) 
       
@@ -933,19 +1012,29 @@ shinyServer(function(input, output, session) {
   observeEvent(input$dimension,{
     
     print(input$dimension)
-    filtros = datos_tabla_con %>%
-      select_( as.name(req(input$dimension) ) ) %>%
+    codigo = as.character( tabla_parejamientos[tabla_parejamientos$nombres_reales == as.name( req(input$dimension) ),][[3]] )
+    filtros = datos_tabla %>%
+      select_( as.name(req(input$dimension) ), as.name( codigo ) ) %>%
       unique()
     
+    mascara <- NULL
+    
+    valores <- NULL
     
     if( length(filtros[[1]]) > 1 ){
-      filtros <- c( "Todas" ,filtros[[1]] )
+      filtro <- c( "Todas" ,filtros[[2]])
+      names(filtro) <- c( "Todas", filtros[[1]] )
     }else{
-      filtros <- filtros[[1]]
+      filtro <- as.list( filtros[[2]] )
+      names(filtro) <- filtros[[1]]
     }
     
+
+
     
-    updateSelectInput(session = session, "valor_dimension", choices = filtros )
+
+    
+    updateSelectInput(session = session, "valor_dimension", choices = filtro   )
   }
   )
   
@@ -970,15 +1059,15 @@ shinyServer(function(input, output, session) {
   
   
   #Observe Event que compara los datos de un año con otro
-  observeEvent(input$comparador,{
-    req(input$comparador)
+  observe({
+    req(input$valor_dimension)
     
     tryCatch( {
-      
+      datos_tabla <- datos_principales$data
       if( input$valor_dimension == "Todas"){
-        
+        codigo = as.character( tabla_parejamientos[tabla_parejamientos$nombres_reales == as.name( req(input$dimension) ),][[3]] )
         data1 <- datos_tabla %>%
-          group_by_( as.name(input$dimension) ) %>%
+          group_by_(as.name(codigo), as.name(input$dimension) ) %>%
           summarise_at(metricas, sum)
         
         if(length(calculos) > 0){
@@ -991,7 +1080,7 @@ shinyServer(function(input, output, session) {
         
         
         data2 <- datos_tabla_con %>%
-          group_by_( input$dimension ) %>%
+          group_by_( as.name(codigo), as.name( input$dimension ) ) %>%
           summarise_at(metricas, sum)
         
         if(length(calculos) > 0){
@@ -999,11 +1088,12 @@ shinyServer(function(input, output, session) {
             mutate_(.dots = setNames(.dots1,"Ejecutado"))
         }
       }else{
-        .dots <- list(interp(~ x == y , .values = list(x = as.name(input$dimension), y = input$valor_dimension ) ) )
+        codigo = as.character( tabla_parejamientos[tabla_parejamientos$nombres_reales == as.name( req(input$dimension) ),][[3]] )
+        .dots <- list(interp(~ x == y , .values = list(x = as.name(codigo), y = input$valor_dimension ) ) )
         
         data1 <- datos_tabla %>%
           filter_( .dots = .dots) %>%
-          group_by_( as.name(input$dimension) ) %>%
+          group_by_( as.name(codigo), as.name(input$dimension)  ) %>%
           summarise_at(metricas, sum)
         
         if(length(calculos) > 0){
@@ -1017,7 +1107,7 @@ shinyServer(function(input, output, session) {
         
         data2 <- datos_tabla_con %>%
           filter_( .dots = .dots) %>%
-          group_by_( input$dimension ) %>%
+          group_by_( as.name(codigo), as.name(input$dimension) ) %>%
           summarise_at(metricas, sum)
         
         if(length(calculos) > 0){
@@ -1029,25 +1119,32 @@ shinyServer(function(input, output, session) {
       
       
       data1 <- data1 %>%
-        rename_(Concepto = input$dimension )
+        rename_(Concepto = as.name( input$dimension ) )
       
       data2 <- data2  %>%
-        rename_(Concepto = input$dimension )
+        rename_(Concepto = as.name( input$dimension ) )
       
       data1 <- data1 %>%
-        select(Concepto,Devengado)
+        select(Concepto, codigo, Devengado)
       
       data2 <- data2 %>%
-        select(Concepto,Devengado)
+        select(Concepto, codigo ,Devengado)
       
-      tabla_merge <- merge(data1, data2, by = "Concepto")
+      if( input$year > input$yearCom ){
+        tabla_merge <- merge(data2, data1, by = codigo )
+      }else{
+        tabla_merge <- merge(data1, data2, by = codigo )
+      }
+      
+      tabla_merge <- tabla_merge %>% select( codigo , Concepto.x, Devengado.x,Devengado.y) %>%
+        rename( Concepto = Concepto.x)
       print(tabla_merge)
       
       if( nrow(tabla_merge) == 0 ){
-        showModal(modalDialog(
-          title = "",
-          "La comparación no se pudo hacer", footer = modalButton("Continuar"), easyClose = T
-        ))
+        # showModal(modalDialog(
+        #   title = "",
+        #   "La comparación no se pudo hacer", footer = modalButton("Continuar"), easyClose = T
+        # ))
       }else{
         datos_comparativos$data <- tabla_merge
       }
@@ -1260,6 +1357,9 @@ shinyServer(function(input, output, session) {
       if( retroceder == T ){
         datos_principales$columnas <- c(filtro, datos_principales$columnas) 
         valores_filtros <- as.list( datos_principales$columnas )
+        a <- ordered(valores_filtros, levels= nombres_reales)
+        b<- order(a)
+        valores_filtros <- valores_filtros[b]
       }else{
         if (exists("filtro")) {
           valores_filtros <- valores_filtros[valores_filtros != filtro]
@@ -1313,6 +1413,8 @@ shinyServer(function(input, output, session) {
     var <-  variable
     temporal <- NULL
     datos_tabla <- datos_principales$data
+    jerarquia_dimension_regreso <- datos_principales$jerarquia_dimension_regreso
+    jerarquia_valor_dimension_regreso <- datos_principales$jerarquia_valor_dimension_regreso
     if( is.null(var) || var == '' ){
       temp <- datos_tabla[ , lapply( .SD , sum, na.rm = TRUE), .SDcols = metricas   ]
       print(temp)
@@ -1413,8 +1515,8 @@ shinyServer(function(input, output, session) {
     
     #actualizarFiltro(filtro)
     
-    jerarquia_valor_dimension_regreso <<- jerarquia_valor_dimension_regreso
-    jerarquia_dimension_regreso <<- jerarquia_dimension_regreso
+    datos_principales$jerarquia_valor_dimension_regreso <- jerarquia_valor_dimension_regreso
+    datos_principales$jerarquia_dimension_regreso <- jerarquia_dimension_regreso
     
     #Ordenando
     
@@ -1440,7 +1542,7 @@ shinyServer(function(input, output, session) {
   construirTablaDinamica <- function(paso_anterior = T){
     
     tabla_temp <- NULL
-    if( length(jerarquia_dimension_regreso  )  == 1 ){
+    if( length(datos_principales$jerarquia_dimension_regreso  )  == 1 ){
       
       temporal <- datos_principales$data %>%
         summarise_at(metricas, sum)
@@ -1461,24 +1563,24 @@ shinyServer(function(input, output, session) {
       cadena_filtro = NULL
       
       if( paso_anterior == T){
-        lon <- length(jerarquia_valor_dimension_regreso) -1  
+        lon <- length(datos_principales$jerarquia_valor_dimension_regreso) -1  
       }else{
-        lon <- length(jerarquia_valor_dimension_regreso) 
+        lon <- length(datos_principales$jerarquia_valor_dimension_regreso) 
       }
       
       
-      if ( lon == 0 ) lon <- 1
+      # if ( lon == 0 ) lon <- 1
       contador <- 1:( lon )
 
-      if( lon == 1 ){
-        cadena_filtro  = paste0(cadena_filtro, jerarquia_dimension_regreso[[1]], '== ', "'", jerarquia_valor_dimension_regreso[[1]], "'")
+      if( lon == 1 || lon == 0 ){
+        cadena_filtro  = paste0(cadena_filtro, '`' ,datos_principales$jerarquia_dimension_regreso[[1]], '`' ,'== ', "'", datos_principales$jerarquia_valor_dimension_regreso[[1]], "'")
       }
       else{
         for(z in  contador ){
-          if( z != length(jerarquia_valor_dimension_regreso) -1  ){
-            cadena_filtro  = paste0(cadena_filtro,'`' ,jerarquia_dimension_regreso[[z]], '`' , '== ', "'", jerarquia_valor_dimension_regreso[[z]], "' & ")  
+          if( z != length(datos_principales$jerarquia_valor_dimension_regreso) -1  ){
+            cadena_filtro  = paste0(cadena_filtro,'`' ,datos_principales$jerarquia_dimension_regreso[[z]], '`' , '== ', "'", datos_principales$jerarquia_valor_dimension_regreso[[z]], "' & ")  
           }else{
-            cadena_filtro  = paste0(cadena_filtro, '`' ,jerarquia_dimension_regreso[[z]], '`' ,'== ', "'", jerarquia_valor_dimension_regreso[[z]], "'")
+            cadena_filtro  = paste0(cadena_filtro, '`' ,datos_principales$jerarquia_dimension_regreso[[z]], '`' ,'== ', "'", datos_principales$jerarquia_valor_dimension_regreso[[z]], "'")
           }
           print(cadena_filtro)
           
@@ -1489,12 +1591,12 @@ shinyServer(function(input, output, session) {
 
       
 
-      codigo = as.character( tabla_parejamientos[tabla_parejamientos$nombres_reales == jerarquia_dimension_regreso[[ length(jerarquia_valor_dimension_regreso)   ]],][[3]] )
+      codigo = as.character( tabla_parejamientos[tabla_parejamientos$nombres_reales == datos_principales$jerarquia_dimension_regreso[[ length(datos_principales$jerarquia_valor_dimension_regreso)   ]],][[3]] )
       
       
       tabla_temp <- datos_principales$data[ eval( parse(text = cadena_filtro) ) ]
       
-      agrupacion <- as.character( jerarquia_dimension_regreso[ lon + 1 ] )
+      agrupacion <- as.character( datos_principales$jerarquia_dimension_regreso[ lon + 1 ] )
       
       tabla_temp <- tabla_temp[ , lapply(.SD, sum, na.rm =  T), by= c(codigo, agrupacion)  , .SDcols=metricas ]
       
@@ -1503,18 +1605,22 @@ shinyServer(function(input, output, session) {
       colnames( tabla_temp )[colnames( tabla_temp )== eval( parse( text = paste0("'",  agrupacion, "'" ) ) ) ] <- "Concepto"
       
       if(paso_anterior == T ){
-        dimension_ida <<- agrupacion  
+        dimension_ida <<- agrupacion
+        if(length(calculos) > 0){
+          tabla_temp <- tabla_temp %>%
+            mutate_(.dots = setNames(.dots1,"Ejecutado"))
+        }
       }
       
     }
     
     #tomando el valor del último elemento de dimension
-    last_filt = jerarquia_dimension_regreso[length(jerarquia_dimension_regreso)]
+    last_filt = datos_principales$jerarquia_dimension_regreso[length(datos_principales$jerarquia_dimension_regreso)]
     
     #Quitando el ultimo elemento
     if(paso_anterior == T){
-      jerarquia_dimension_regreso <<- jerarquia_dimension_regreso[c(1:length(jerarquia_dimension_regreso) -1 )]
-      jerarquia_valor_dimension_regreso <<- jerarquia_valor_dimension_regreso[c(1:length(jerarquia_valor_dimension_regreso) -1 )]
+      datos_principales$jerarquia_dimension_regreso <- datos_principales$jerarquia_dimension_regreso[c(1:length(datos_principales$jerarquia_dimension_regreso) -1 )]
+      datos_principales$jerarquia_valor_dimension_regreso <- datos_principales$jerarquia_valor_dimension_regreso[c(1:length(datos_principales$jerarquia_valor_dimension_regreso) -1 )]
     }
     
     
@@ -1631,7 +1737,8 @@ shinyServer(function(input, output, session) {
 #   principal
   
   observe({
-    input$year
+    #input$year
+    datos_tabla = datos_principales$data
     devengado$d <- datos_tabla %>%
       summarise(Devengado = sum(Devengado))
     
@@ -1657,14 +1764,29 @@ shinyServer(function(input, output, session) {
   observe({
     datos <- datos_comparativos$data
     if( !is.null(datos) ){
-      names(datos) = sub('Devengado.x', paste("Devengado", input$yearCom), names(datos))
-      names(datos) = sub('Devengado.y', paste("Devengado", input$year), names(datos))
+      if( input$year > input$yearCom ){
+        names(datos) = sub('Devengado.x', paste("Devengado", input$yearCom), names(datos))
+        names(datos) = sub('Devengado.y', paste("Devengado", input$year), names(datos))  
+      }else{
+        names(datos) = sub('Devengado.y', paste("Devengado", input$yearCom), names(datos))
+        names(datos) = sub('Devengado.x', paste("Devengado", input$year), names(datos))
+      }
+      
       comparativo_tabla$data <- datos  
     }
     
   })
 
-  
+  observe({
+    print( datos_principales$jerarquia_dimension_regreso )
+    if( length( datos_principales$jerarquia_dimension_regreso ) == 0 ){
+      print("Desaparece el botón de atrás de tabla")
+      shinyjs::hide("retroceder_tabla")
+    }else{
+      print("Se muestra el botón de retroceso")
+      shinyjs::show("retroceder_tabla")
+    }
+  })
  
   
 

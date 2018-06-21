@@ -79,12 +79,17 @@ dashboardPage(
               fluidRow(
                 column(3),
                 column(3),
+                fluidRow(column(12, offset=-1, align= "right", htmlOutput("actualizacion-texto-principal" ) ) ),
+                
+                br(),
                 column(3, align = "right",
                        downloadButton("descarga","Descargar") ),
+                useShinyjs(),
                 column(3, align = "right",
-                       uiOutput("Atras"))
+                       actionButton("retroceder_tabla", icon = icon("glyphicon glyphicon-arrow-up", lib= "glyphicon"), label = "Nivel anterior"))
               ), 
               
+
               fluidRow(
                 column(12, align = "left", 
                        DT::dataTableOutput("tabla")
@@ -92,11 +97,14 @@ dashboardPage(
               ),
       tabItem(tabName = "comparador-exp",
               fluidRow(
-                column(2,uiOutput("comparadorAño")),
+                column(12, htmlOutput("texto-explicativo") )
+              ),
+              br(),
+              br(),
+              fluidRow(
+                column(3,uiOutput("comparadorAño")),
                 column(3,uiOutput("dimension")),
-                column(3,uiOutput("valor-dimension")),
-                column(2, uiOutput("boton-comparar") ),
-                column(2, uiOutput("boton-comparar-tabla") )
+                column(3,uiOutput("valor-dimension"))
               ),
               fluidRow(
                 column(12, align ="center",
@@ -106,6 +114,11 @@ dashboardPage(
                        )
                 )
               ),
+              
+              fluidRow(column(12, offset=-1, align= "right", htmlOutput("actualizacion-texto" ) ) ),
+              
+              br(),
+              
               fluidRow(
                 column(12, align ="center",
                        box(title = HTML( paste0('<p style=color:',color_texto_caja,'>', "Tabla de comparación de devengados", '</p>') ),
