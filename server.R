@@ -17,7 +17,8 @@ shinyServer(function(input, output, session) {
   # Para hacer los cambios en cada tablero debe acceder a este archivo
   # y modificarlo
   source('Scripts/parametros-server.R')
-
+  Sys.setlocale(category = "LC_ALL", locale = "es_ES.UTF-8")
+  
   # Variables para uso en esta sesión ---------------------------------------
 
   mapaJson <-  NULL
@@ -224,12 +225,12 @@ shinyServer(function(input, output, session) {
 # Función reactive que permite calcular el porcentaje de ejecución para el tablero principal
   
   
-  porcentajeEjecucion <- reactive({
-    ejecucionMes %>%
-      select(Ejercicio, Devengado, Vigente ) %>%
-      filter(Ejercicio == input$year ) %>%
-      mutate(PorcentajeEje =  Devengado /   Vigente  * 100  ) 
-  })
+  # porcentajeEjecucion <- reactive({
+  #   ejecucionMes %>%
+  #     select_("Ejercicio", "Devengado", vigente ) %>%
+  #     filter("Ejercicio" == input$year ) %>%
+  #     summarise_( .dots =  .dots1  ) 
+  # })
   
   # Función reactive que calcula el gasto para treemap
   
@@ -291,6 +292,22 @@ shinyServer(function(input, output, session) {
     }
     
     
+    fac_division = 1
+    formato_eje = ".2%"
+    sufijo = ""
+    titulo = "Devengado en quetzales"
+
+      if( max( temp$Devengado ) > 10^6 ){
+        fac_division = 10^6
+        formato_eje = ",.3"
+        titulo = "Devengado en millones de quetzales"
+      }else{
+        titulo = "Devengado"
+        fac_division = 1
+        formato_eje = ",.3"
+      }
+    
+    
     
     temp <- temp[order(-temp$Devengado),]
     temp$Concepto <- factor(temp$Concepto, levels = temp[["Concepto"]])
@@ -302,9 +319,9 @@ shinyServer(function(input, output, session) {
     
     
     p <- temp %>%
-      plot_ly(x = ~Concepto, y = ~Devengado, mode = "markers", color = I(color_debil), name = 'Entidad', type = 'bar', text = paste("Q",formatC(temp$Devengado,format = "f", big.mark = ",", digits = 1) ) 
+      plot_ly(x = ~Concepto, y = ~Devengado/fac_division, mode = "markers", color = I(color_debil), name = 'Entidad', type = 'bar', hoverinfo = "x+text", text = paste("Q",formatC(temp$Devengado,format = "f", big.mark = ",", digits = 1)  ) 
       ) %>%
-      layout(xaxis = list(showticklabels = FALSE) ,showlegend = T) 
+      layout(xaxis = list(showticklabels = FALSE) ,showlegend = T, yaxis = list(title = titulo, tickformat = formato_eje, ticksuffix = sufijo) ) 
     
   })
   
@@ -312,12 +329,12 @@ shinyServer(function(input, output, session) {
 
   output$detalle <- renderUI({
     actionButton("detalleGasto",
-                 label = HTML( paste('<span style= "font-family:OpenSans;font-size:150%;color:white;bottom: 100px;">Ver
+                 label = HTML( paste('<span style= "font-family:Montserrat;font-size:150%;color:white">Ver
                               </span> <span style= "font-family:Montserrat;font-size:150%;color:white;"> detalle
-                              </span> </br> <span style= "font-family:OpenSans;font-size:150%;color:white;">  &nbsp&nbsp del
+                              </span> </br> <span style= "font-family:Montserrat;font-size:150%;color:white;">  &nbsp&nbsp&nbsp&nbsp&nbsp del
                               </span> <span style= "font-family:Montserrat;font-size:150%;color:white;">',  aplicacion,
                                      '</span>') ), icon = icon("search-plus","fa-3x"),
-                 style= paste0( 'color: #fff; background-color:', color_fuerte_boton,'; border-color:', color_fuerte_boton) )
+                 style= paste0( 'color: #fff; background-color:', color_fuerte_boton,'; border-color:', color_fuerte_boton,';border:none' ) )
   })
   
 
@@ -461,7 +478,7 @@ shinyServer(function(input, output, session) {
   # Render que dibuja el devengado en el tablero principal
   output$devengadoBox <- renderInfoBox({
     infoBox(
-      HTML( paste( '<p style="font-family:Montserrat;">',titulo_box2 , '</p>' ) ), tags$p(style = paste0("font-family:Montserrat;color:", color_fuerte, ";font-size: 120%;"), paste("Q" ,formatC( devengado$d[[1]], format = "f", big.mark = ",", digits = 1) ) ) , icon = icon("money"),
+      HTML( paste( '<p style="font-family:Montserrat;">',titulo_box2 , '</p>' ) ), tags$p(style = paste0("font-family:Montserrat;color:", color_texto_box_inicio, ";font-size: 120%;"), paste("Q" ,formatC( devengado$d[[1]], format = "f", big.mark = ",", digits = 1) ) ) , icon = icon("money"),
       color = color_caja, width = 4
     )
   })
@@ -469,7 +486,7 @@ shinyServer(function(input, output, session) {
   # Render que dibuja el porcentaje de ejecución en el tablero principal
   output$progressBox <- renderInfoBox({
     infoBox(
-      HTML( paste('<p style="font-family:Montserrat;">', titulo_box1 ,'</p>' ) ), tags$p(style = paste0("font-family:Montserrat;color:", color_fuerte, ";font-size: 120%;"), paste( round( devengado$p[[1]]  ,2) , "%" ) ), icon = icon("percent"),
+      HTML( paste('<p style="font-family:Montserrat;">', titulo_box1 ,'</p>' ) ), tags$p(style = paste0("font-family:Montserrat;color:", color_texto_box_inicio, ";font-size: 120%;"), paste( round( devengado$p[[1]]  ,2) , "%" ) ), icon = icon("percent"),
       color = color_caja, width = 2
     )
   })
@@ -497,6 +514,8 @@ shinyServer(function(input, output, session) {
     )
   })
 
+
+  
   #Render para el árbol
   d3treeOutput("d3")
   
@@ -540,8 +559,8 @@ shinyServer(function(input, output, session) {
   }
   
   
-   tabla_temporal2[order( -tabla_temporal2[[metrica]] ),]  
-   levels(tabla_temporal2$Concepto) <- tabla_temporal2$Concepto
+   # tabla_temporal2[order( -tabla_temporal2[[metrica]] ),]  
+   # levels(tabla_temporal2$Concepto) <- unique( tabla_temporal2$Concepto )
   
    tabla_temporal2$Concepto <- factor(tabla_temporal2$Concepto, levels = unique(tabla_temporal2$Concepto)[order(tabla_temporal2[[metrica]], decreasing = TRUE)])
 
@@ -628,20 +647,35 @@ shinyServer(function(input, output, session) {
     
     
     
-    tryCatch({
-      if(nrow(temp) < 20 ){
-        tipo = 'bar'
-      }else{
-        tipo = 'scatter'
-      }
-    }, error = function(e){
-      print(e)
-    })
+
     
+    anio1 <- ""
+    anio2 <- ""
+    
+    if(input$year > input$yearCom){
+      anio1 <- input$year
+      anio2 <- input$yearCom
+    }else{
+      anio1 <- input$yearCom
+      anio2 <- input$year 
+    }
+      
+      
     if( !is.null( temp ) ){
-      p <- plot_ly(temp, x = ~Concepto, y = ~Devengado.y/fac_division, name = paste("Devengado", input$yearCom), color = I(color_debil), type = tipo, hoverinfo = "x+text+name",
+      tryCatch({
+        if(nrow(temp) < 20 ){
+          tipo = 'bar'
+        }else{
+          tipo = 'scatter'
+        }
+      }, error = function(e){
+        print(paste("Módulo gráfica", e) )
+        plotly_empty()
+      })
+      print(temp)
+      p <- plot_ly(temp, x = ~Concepto, y = ~Devengado.y/fac_division, name = paste("Devengado", anio1), color = I(color_debil), type = tipo, hoverinfo = "x+text+name",
                    text = paste("Q" ,format(temp$Devengado.y, big.mark = ",") ) ) %>%
-        add_trace(y = ~Devengado.x / fac_division, name = paste("Devengado", input$year), color = I(color_fuerte), text = paste("Q" ,format(temp$Devengado.x, big.mark = ",") )) %>%
+        add_trace(y = ~Devengado.x / fac_division, name = paste("Devengado", anio2), color = I(color_fuerte), text = paste("Q" ,format(temp$Devengado.x, big.mark = ",") )) %>%
         layout(yaxis = list(title = titulo, tickformat = formato_eje, ticksuffix = sufijo), xaxis = list(showticklabels = FALSE) ,showlegend = T   )
     }else{
       plotly_empty()
@@ -746,9 +780,32 @@ shinyServer(function(input, output, session) {
     #   escribirReactivos( ini = isolate(numeroReactivos$x),  lon = isolate(numeroReactivos$y) )
     # }
     
+    #Haciendo los tootltips para las columnas
+    nc <- tags$th("","")
+    nombres_col <- lapply(names(datos), function(x){
+      print( paste(nc,tags$th(x, title = if( is.null(tooltip[[x]])) {""}else{tooltip[[x]]}  )) )
+      nc <<- paste(nc,tags$th(x, title = if( is.null(tooltip[[x]])) {""}else{tooltip[[x]]}  ))
+    })
+   
+    print(nc)
+    print(sketch)
+    
+    sketch = htmltools::withTags(table(
+      class = 'display',
+      thead(
+        tr(
+          th("",title= ""),
+          lapply(names(datos), function(x){tags$th( x ,title = if( is.null(tooltip[[x]])) {""}else{tooltip[[x]]} ) })
+        )
+      )
+    ))
+    print(sketch)
+    
+    
     
     a <- DT::datatable( datos, escape = F, 
                         options = opciones_tablas, class = "display", selection = "single" )
+    # print(paste("a vale", datos))
     if( length( calculos ) > 0 ){
       a %>% 
         DT::formatCurrency(metricas_currency, currency = "Q") %>%
@@ -772,6 +829,24 @@ shinyServer(function(input, output, session) {
   }
                )
   
+  #Observe Event para el cambio de pestañas que controla el año de inicio 
+  observeEvent(input$tabs,{
+    if( input$tabs == "comparador-exp" ){
+      a <- format(Sys.Date(), "%Y")
+      if( input$year > 1997){
+        a <- input$year
+      }
+      if(aplicacion == "gasto" & subaplicacion == "central"){
+        updateSelectInput(session,"year", choices = c(format(Sys.Date(), "%Y"):1998 ), selected = a )
+      }else{
+        updateSelectInput(session,"year", choices = c(format(Sys.Date(), "%Y"):anio_inicio ), selected = a )
+      }
+    
+      
+    }else{
+      updateSelectInput(session, "year", choices = c(format(Sys.Date(), "%Y"):anio_inicio ), selected = input$year)
+    }
+  })
   
   # Implementación para el botón de atrás de los treemaps, sujeta a revisiones
   
@@ -906,7 +981,20 @@ shinyServer(function(input, output, session) {
         datos_principales$jerarquia_valor_dimension_regreso = list() #antes era lifo, se pasa a lista
         datos_principales$val_filtros <- NULL
         
-    
+        if(input$year %in% c(1995:1997)){
+          metricas <<- c("Asignado","Devengado")
+          .dots1 <<- list(interp(~ x / z , .values = list(y = "Ejecutado", x = as.name("Devengado"), z = as.name("Asignado") ) ) )
+          .dots2 <<- list(interp(~ sum( x, na.rm = T )  / sum( z, na.rm = T ) *100, .values = list(y = "Ejecutado", x = as.name("Devengado"), z = as.name("Asignado") ) ) )
+          metricas_currency <<- c("Asignado","Devengado")
+        }else{
+          if( aplicacion == "gasto" ){
+            metricas <<- c("Asignado","Modificado","Vigente","Comprometido","Devengado","Pagado")
+            .dots1 <<- list(interp(~ x / z , .values = list(y = "Ejecutado", x = as.name("Devengado"), z = as.name("Vigente") ) ) )
+            .dots2 <<- list(interp(~ sum( x, na.rm = T)  / sum( z, na.rm = T )*100 , .values = list(y = "Ejecutado", x = as.name("Devengado"), z = as.name("Vigente") ) ) )
+            metricas_currency <<- c("Asignado","Modificado","Vigente","Comprometido","Devengado","Pagado")
+          }
+        }
+        
         gasto_tabla()
         
       }) 
@@ -924,7 +1012,7 @@ shinyServer(function(input, output, session) {
       
       
     }, error = function(e){
-      print(e)
+      print( paste("En el cambio de año", e) )
       showModal(modalDialog(
         title = "Error",
         "No se pudo cargar el conjunto de datos, intente más tarde", footer = modalButton("Continuar"), easyClose = T
@@ -942,7 +1030,10 @@ shinyServer(function(input, output, session) {
       paste("data-", Sys.Date(), ".csv", sep="")
     },
     content = function(fname){
-      write.csv2(datos_principales$tabla_temporal,fname)
+      d <- datos_principales$tabla_temporal %>%
+        select_if( is.numeric ) %>%
+        
+      write.csv(datos_principales$tabla_temporal,fname, fileEncoding = "cp1252")
     }
   )
   
@@ -987,10 +1078,15 @@ shinyServer(function(input, output, session) {
         datos_tabla_con <<-  as.data.frame(data.table::fread(paste0('Data/',nombre_tablas,input$yearCom,'.csv'), sep =';'))
       })
       dimension <- datos_tabla_con %>%
-        select_if(Negate(is.numeric) ) %>%
-        top_n(2)
+        select_if(Negate(is.numeric) ) 
+      
+      dimension_principal <- datos_principales$data %>%
+        select_if(Negate(is.numeric) )
+      
       dimension <- names(dimension)
-      dimension <- intersect(dimension, metricas_comparativas)
+      dimension_principal <- names( dimension_principal )
+      dimension <- intersect(  intersect(dimension, metricas_comparativas), dimension_principal) 
+      
       print( as.list(dimension)[[1]] )
       updateSelectInput(session = session,"dimension", choices = as.list(dimension), selected = as.list(dimension)[[1]] ) 
       
@@ -1047,122 +1143,7 @@ shinyServer(function(input, output, session) {
   })
   
   
-  #Observe Evente con relación al árbol, función desconocida y candidata a eliminación
-  
-  observeEvent(network$nodes,{
-    output$results <- renderPrint({
-      str.out=''
-      if(!is.null(network$nodes)) str.out=tree.filter(network$nodes,m)
-      return(str.out)
-    })    
-  })
-  
-  
-  #Observe Event que compara los datos de un año con otro
-  observe({
-    req(input$valor_dimension)
-    
-    tryCatch( {
-      datos_tabla <- datos_principales$data
-      if( input$valor_dimension == "Todas"){
-        codigo = as.character( tabla_parejamientos[tabla_parejamientos$nombres_reales == as.name( req(input$dimension) ),][[3]] )
-        data1 <- datos_tabla %>%
-          group_by_(as.name(codigo), as.name(input$dimension) ) %>%
-          summarise_at(metricas, sum)
-        
-        if(length(calculos) > 0){
-          data1 <- data1 %>%
-            mutate_(.dots = setNames(.dots1,"Ejecutado"))
-        }
-        
-        
-        # .dots <- list(interp(~ x == y , .values = list(x = input$dimension, y = input$valor_dimension ) ) )
-        
-        
-        data2 <- datos_tabla_con %>%
-          group_by_( as.name(codigo), as.name( input$dimension ) ) %>%
-          summarise_at(metricas, sum)
-        
-        if(length(calculos) > 0){
-          data2 <- data2 %>%
-            mutate_(.dots = setNames(.dots1,"Ejecutado"))
-        }
-      }else{
-        codigo = as.character( tabla_parejamientos[tabla_parejamientos$nombres_reales == as.name( req(input$dimension) ),][[3]] )
-        .dots <- list(interp(~ x == y , .values = list(x = as.name(codigo), y = input$valor_dimension ) ) )
-        
-        data1 <- datos_tabla %>%
-          filter_( .dots = .dots) %>%
-          group_by_( as.name(codigo), as.name(input$dimension)  ) %>%
-          summarise_at(metricas, sum)
-        
-        if(length(calculos) > 0){
-          data1 <- data1 %>%
-            mutate_(.dots = setNames(.dots1,"Ejecutado"))
-        }
-        
-        
-        # .dots <- list(interp(~ x == y , .values = list(x = input$dimension, y = input$valor_dimension ) ) )
-        
-        
-        data2 <- datos_tabla_con %>%
-          filter_( .dots = .dots) %>%
-          group_by_( as.name(codigo), as.name(input$dimension) ) %>%
-          summarise_at(metricas, sum)
-        
-        if(length(calculos) > 0){
-          data2 <- data2 %>%
-            mutate_(.dots = setNames(.dots1,"Ejecutado"))
-        }
-      }
-      
-      
-      
-      data1 <- data1 %>%
-        rename_(Concepto = as.name( input$dimension ) )
-      
-      data2 <- data2  %>%
-        rename_(Concepto = as.name( input$dimension ) )
-      
-      data1 <- data1 %>%
-        select(Concepto, codigo, Devengado)
-      
-      data2 <- data2 %>%
-        select(Concepto, codigo ,Devengado)
-      
-      if( input$year > input$yearCom ){
-        tabla_merge <- merge(data2, data1, by = codigo )
-      }else{
-        tabla_merge <- merge(data1, data2, by = codigo )
-      }
-      
-      tabla_merge <- tabla_merge %>% select( codigo , Concepto.x, Devengado.x,Devengado.y) %>%
-        rename( Concepto = Concepto.x)
-      print(tabla_merge)
-      
-      if( nrow(tabla_merge) == 0 ){
-        # showModal(modalDialog(
-        #   title = "",
-        #   "La comparación no se pudo hacer", footer = modalButton("Continuar"), easyClose = T
-        # ))
-      }else{
-        datos_comparativos$data <- tabla_merge
-      }
-    }
-    
-    
-    , error = function(e){
-      showModal(modalDialog(
-        title = "Error",
-        "No se pudo realizar la comparación", footer = modalButton("Continuar"), easyClose = T
-      )) 
-    })
-    
-    
-    
-    
-    
-  })
+
   
   
   #Observe event que compara los datos de la tabla generada en módulo principal con otro año
@@ -1185,10 +1166,10 @@ shinyServer(function(input, output, session) {
     }
     , error = function(e) {
       print(e)
-      showModal(modalDialog(
-        title = "Error",
-        "No se pudo realizar la comparación", footer = modalButton("Continuar"), easyClose = T
-      )) 
+      # showModal(modalDialog(
+      #   title = "Error",
+      #   "No se pudo realizar la comparación", footer = modalButton("Continuar"), easyClose = T
+      # )) 
     }  )
     
   }
@@ -1371,10 +1352,18 @@ shinyServer(function(input, output, session) {
 
 
       
+      
             
       
       
       lista_filtros <- obtenerListaFiltros(valores_filtros)
+      
+      
+      
+      
+
+      
+
       
       #View(valores_filtros)
       
@@ -1420,7 +1409,8 @@ shinyServer(function(input, output, session) {
       print(temp)
       
       if(length(calculos) > 0){
-        temp <- temp[ , Ejecutado := Devengado / Vigente ]
+        temp <- temp %>%
+          mutate_(.dots = setNames(.dots1,"Ejecutado"))
       }
       
       
@@ -1654,8 +1644,23 @@ shinyServer(function(input, output, session) {
     
     
     
-    
+    if( length(which( nombres %in% listaExclusion ) ) > 1 )
     nombres <- nombres[-which( nombres %in% listaExclusion )]
+    
+    
+    lapply(names( conflicto ), function(x){
+      if(x %in% nombres){
+        for (y in c(1:length( conflicto[[x]] ) ) ) {
+          print( paste( "Se recorre", x ) )
+          if( !( conflicto[[x]][[y]] %in% nombres || conflicto[[x]][[y]] %in% datos_principales$jerarquia_dimension_regreso ) ){
+            nombres <<- nombres[ nombres != x]
+            break
+          }
+        }
+      }
+    })  
+    
+    
     tempo_bonitos <- lapply(nombres, function(x){
       return( as.character( tabla_parejamientos[tabla_parejamientos$nombres_reales == x, ][[2]]))
     })
@@ -1740,11 +1745,11 @@ shinyServer(function(input, output, session) {
     #input$year
     datos_tabla = datos_principales$data
     devengado$d <- datos_tabla %>%
-      summarise(Devengado = sum(Devengado))
+      summarise(Devengado = sum(Devengado, na.rm = T))
     
     if( aplicacion == "gasto" ){
       devengado$p <- datos_tabla %>%
-        summarise( Ejecutado = sum(Devengado) / sum(Vigente) * 100 )
+        summarise_( .dots = .dots2 )
     }
   })
   
@@ -1788,74 +1793,130 @@ shinyServer(function(input, output, session) {
     }
   })
  
+  #Observe Evente con relación al árbol, función desconocida y candidata a eliminación
   
+  observeEvent(network$nodes,{
+    output$results <- renderPrint({
+      str.out=''
+      if(!is.null(network$nodes)) str.out=tree.filter(network$nodes,m)
+      return(str.out)
+    })    
+  })
+  
+  
+  #Observe que compara los datos de un año con otro
+  observe({
+    req(input$valor_dimension)
+    
+    tryCatch( {
+      datos_tabla <- datos_principales$data
+      if( input$valor_dimension == "Todas"){
+        codigo = as.character( tabla_parejamientos[tabla_parejamientos$nombres_reales == as.name( req(input$dimension) ),][[3]] )
+        data1 <- datos_tabla %>%
+          group_by_(as.name(codigo), as.name(input$dimension) ) %>%
+          summarise_at(metricas, sum)
+        
+        if(length(calculos) > 0){
+          data1 <- data1 %>%
+            mutate_(.dots = setNames(.dots1,"Ejecutado"))
+        }
+        
+        
+        # .dots <- list(interp(~ x == y , .values = list(x = input$dimension, y = input$valor_dimension ) ) )
+        
+        
+        data2 <- datos_tabla_con %>%
+          group_by_( as.name(codigo), as.name( input$dimension ) ) %>%
+          summarise_at(metricas, sum)
+        
+        if(length(calculos) > 0){
+          data2 <- data2 %>%
+            mutate_(.dots = setNames(.dots1,"Ejecutado"))
+        }
+      }else{
+        codigo = as.character( tabla_parejamientos[tabla_parejamientos$nombres_reales == as.name( req(input$dimension) ),][[3]] )
+        .dots <- list(interp(~ x == y , .values = list(x = as.name(codigo), y = input$valor_dimension ) ) )
+        
+        data1 <- datos_tabla %>%
+          filter_( .dots = .dots) %>%
+          group_by_( as.name(codigo), as.name(input$dimension)  ) %>%
+          summarise_at(metricas, sum)
+        
+        if(length(calculos) > 0){
+          data1 <- data1 %>%
+            mutate_(.dots = setNames(.dots1,"Ejecutado"))
+        }
+        
+        
+        # .dots <- list(interp(~ x == y , .values = list(x = input$dimension, y = input$valor_dimension ) ) )
+        
+        
+        data2 <- datos_tabla_con %>%
+          filter_( .dots = .dots) %>%
+          group_by_( as.name(codigo), as.name(input$dimension) ) %>%
+          summarise_at(metricas, sum)
+        
+        if(length(calculos) > 0){
+          data2 <- data2 %>%
+            mutate_(.dots = setNames(.dots1,"Ejecutado"))
+        }
+      }
+      
+      
+      var <- c("Devengado")
+      data1 <- data1 %>%
+        rename_(Concepto = as.name( input$dimension ) )
+      
+      data2 <- data2  %>%
+        rename_(Concepto = as.name( input$dimension ) )
+      
+      data1 <- data1 %>%
+        select(Concepto, codigo, Devengado)
+      
+      data2 <- data2 %>%
+        select(Concepto, codigo ,Devengado)
+      
+      if( input$year > input$yearCom ){
+        tabla_merge <- merge(data2, data1, by = codigo )
+      }else{
+        tabla_merge <- merge(data1, data2, by = codigo )
+      }
+      
+      tabla_merge <- tabla_merge %>% select( codigo , Concepto.x, Devengado.x,Devengado.y) %>%
+        rename( Concepto = Concepto.x)
+      print(tabla_merge)
+      
+      tabla_merge <- tabla_merge[order( tabla_merge[[codigo]] ),]
+      #tabla_temporal$Concepto <- factor( tabla_temporal$Concepto, levels = tabla_temporal[["Concepto"]])
+      tabla_merge$Concepto <- factor(tabla_merge$Concepto, levels = tabla_merge[["Concepto"]])
+      
+      
 
-  
-
-  
-  
-  
-
-  
- 
-  
-  
-
-  
-  
-
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-
-
-  
-
-  
-
-  
-
-  
-  
-
-  
-  
-  
-
-  
-  
-
-  
-  
-  
-  
-  
-  
-
-  
-
-  
-
-
-
-  
-  
-  
-  
-
-  
-  
-
-
-  
-  
+      
+      
+      if( nrow(tabla_merge) == 0 ){
+        # showModal(modalDialog(
+        #   title = "",
+        #   "La comparación no se pudo hacer", footer = modalButton("Continuar"), easyClose = T
+        # ))
+      }else{
+        datos_comparativos$data <- tabla_merge
+      }
+    }
+    
+    
+    , error = function(e){
+      # showModal(modalDialog(
+      #   title = "Error",
+      #   "No se pudo realizar la comparación", footer = modalButton("Continuar"), easyClose = T
+      # )) 
+    })
+    
+    
+    
+    
+    
+  })
   
   
   

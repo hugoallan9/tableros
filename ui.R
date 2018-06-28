@@ -18,7 +18,7 @@ shinyUI(
 dashboardPage(
   dashboardHeader(title = titulo),
   dashboardSidebar(
-    selectInput("year",label = HTML('<p style="color:black">Ejercicio Fiscal <p>') ,choices = c(1998:format(Sys.Date(), "%Y")), selected = format(Sys.Date(), "%Y")  ),
+    selectInput("year",label = HTML('<p style="color:black">Ejercicio Fiscal <p>') ,choices = c(year_inicio:format(Sys.Date(), "%Y")), selected = format(Sys.Date(), "%Y")  ),
     sidebarMenu(
     id = "tabs",
     menuItem("Información principal", tabName = "dashboard", icon = icon("dashboard") ),
@@ -39,7 +39,7 @@ dashboardPage(
               fluidRow(
                 box(title = HTML( paste0('<p style=color:',color_texto_caja,'>', titulo_caja, '</p>') ),
                     status = "primary", solidHeader = T , collapsible = TRUE,width = 12,
-                    plotlyOutput("grafica-inicio", height = 400)
+                    plotlyOutput("grafica-inicio", height = 400) %>% shinycssloaders::withSpinner()
                 )
                 
               )
@@ -69,30 +69,31 @@ dashboardPage(
                 column(12, align ="center",
                        box(title = HTML( paste0('<p style=color:',color_texto_caja,'>', titulo_grafica, '</p>') ),
                            status = "primary", solidHeader = TRUE, collapsible = TRUE,width = 12,
-                           plotlyOutput("grafica", height = 400, width = "100%")
+                           plotlyOutput("grafica", height = 400, width = "100%")%>% shinycssloaders::withSpinner()
                        )
                 )
                 
               )
               , 
               
-              fluidRow(
-                column(3),
-                column(3),
+
                 fluidRow(column(12, offset=-1, align= "right", htmlOutput("actualizacion-texto-principal" ) ) ),
                 
                 br(),
-                column(3, align = "right",
+
+              
+              fluidRow(
+                column(10, align = "right",
                        downloadButton("descarga","Descargar") ),
                 useShinyjs(),
-                column(3, align = "right",
+                column(2, align = "right",
                        actionButton("retroceder_tabla", icon = icon("glyphicon glyphicon-arrow-up", lib= "glyphicon"), label = "Nivel anterior"))
-              ), 
+              ),
               
 
               fluidRow(
                 column(12, align = "left", 
-                       DT::dataTableOutput("tabla")
+                       DT::dataTableOutput("tabla")%>% shinycssloaders::withSpinner()
                 ) )
               ),
       tabItem(tabName = "comparador-exp",
