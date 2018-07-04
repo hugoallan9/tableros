@@ -787,8 +787,7 @@ shinyServer(function(input, output, session) {
       nc <<- paste(nc,tags$th(x, title = if( is.null(tooltip[[x]])) {""}else{tooltip[[x]]}  ))
     })
    
-    print(nc)
-    print(sketch)
+
     
     sketch = htmltools::withTags(table(
       class = 'display',
@@ -799,12 +798,12 @@ shinyServer(function(input, output, session) {
         )
       )
     ))
-    print(sketch)
+
     
     
     
     a <- DT::datatable( datos, escape = F, 
-                        options = opciones_tablas, class = "display", selection = "single" )
+                        options = opciones_tablas, class = "display", selection = "single", container = sketch )
     # print(paste("a vale", datos))
     if( length( calculos ) > 0 ){
       a %>% 
@@ -1398,6 +1397,7 @@ shinyServer(function(input, output, session) {
   # dados por el usuario, requiere readecuación a valores reactivos
   
   gasto_tabla <- function(filtro = '', variable = ''){
+
     
     var <-  variable
     temporal <- NULL
@@ -1420,6 +1420,8 @@ shinyServer(function(input, output, session) {
       
       
     }else{
+
+      
       resultado <- datos_principales$tabla_temporal[var, "Concepto"] 
       if(resultado == Concepto[[1]]){
         codigo = as.character( tabla_parejamientos[tabla_parejamientos$nombres_reales == filtro,][[3]] )
@@ -1443,7 +1445,7 @@ shinyServer(function(input, output, session) {
             rename_(Concepto = as.name(filtro), Código = as.name(codigo) )  
         }
         
-        
+
         
         dimension_ida <<- filtro
         #push(jerarquia_dimension_regreso,filtro)
@@ -1455,16 +1457,41 @@ shinyServer(function(input, output, session) {
         
         
       }else{
+        lon <- length(datos_principales$jerarquia_dimension_regreso) 
+        contador <- 1:( lon )
+        cadena_filtro = NULL
         col <- as.character(datos_principales$tabla_temporal$Concepto[variable] )
-        dimension_actual <- dimension_ida
-        .dots <- list(interp(~y==x, .values = list( y = as.name(dimension_actual), x = col ) ))
-        tabla_dinamica <<- tabla_dinamica %>%
-          filter_( .dots = .dots )
+        if(lon > 0 ){
+          for(z in  contador ){
+            if( z != length(datos_principales$jerarquia_dimension_regreso)   ){
+              cadena_filtro  = paste0(cadena_filtro,'`' ,datos_principales$jerarquia_dimension_regreso[[z]], '`' , '== ', "'", datos_principales$jerarquia_valor_dimension_regreso[[z]], "' & ")  
+            }else{
+              cadena_filtro  = paste0(cadena_filtro, '`' ,datos_principales$jerarquia_dimension_regreso[[z]], '`' ,'== ', "'", col, "'")
+            }
+            
+            
+          }
+        }
+
+        print(cadena_filtro)
         
         codigo = as.character( tabla_parejamientos[tabla_parejamientos$nombres_reales == filtro,][[3]] )
-        temporal <- tabla_dinamica %>%
-          group_by_( as.name( codigo ) , as.name(filtro) ) %>%
-          summarise_at(metricas, sum)
+        
+        temporal <- datos_principales$data[ eval( parse(text = cadena_filtro) ) ]
+        
+
+        
+        temporal <- temporal[ , lapply(.SD, sum, na.rm =  T), by= c(codigo,filtro)  , .SDcols=metricas ]
+        
+        # dimension_actual <- dimension_ida
+        # .dots <- list(interp(~y==x, .values = list( y = as.name(dimension_actual), x = col ) ))
+        # tabla_dinamica <<- tabla_dinamica %>%
+        #   filter_( .dots = .dots )
+        # 
+        
+        # temporal <- tabla_dinamica %>%
+        #   group_by_( as.name( codigo ) , as.name(filtro) ) %>%
+        #   summarise_at(metricas, sum)
         
         if(length(calculos) > 0){
           temporal <- temporal %>%
@@ -1474,11 +1501,11 @@ shinyServer(function(input, output, session) {
         if( filtro == codigo){
           
           temporal <- temporal %>%
-            rename_( Concepto = as.name( filtro ) )
+            rename_( Concepto = paste0( '`',as.name( filtro ), '`' ) )
         }else{
           
           temporal <- temporal %>%
-            rename_( Concepto = as.name( filtro ), Código = as.name(codigo ) )
+            rename_( Concepto =  paste0( '`',as.name( filtro ),'`') , Código = paste0('`', codigo , '`')  )
         }
         
         dimension_ida <<- filtro # quizás lo correcto es filtro actualmente es dimension_actual
@@ -1563,7 +1590,7 @@ shinyServer(function(input, output, session) {
       contador <- 1:( lon )
 
       if( lon == 1 || lon == 0 ){
-        cadena_filtro  = paste0(cadena_filtro, '`' ,datos_principales$jerarquia_dimension_regreso[[1]], '`' ,'== ', "'", datos_principales$jerarquia_valor_dimension_regreso[[1]], "'")
+        #cadena_filtro  = paste0(cadena_filtro, '`' ,datos_principales$jerarquia_dimension_regreso[[1]], '`' ,'== ', "'", datos_principales$jerarquia_valor_dimension_regreso[[1]], "'")
       }
       else{
         for(z in  contador ){
@@ -1577,14 +1604,18 @@ shinyServer(function(input, output, session) {
         }
       }
       
-         
+      
 
       
 
       codigo = as.character( tabla_parejamientos[tabla_parejamientos$nombres_reales == datos_principales$jerarquia_dimension_regreso[[ length(datos_principales$jerarquia_valor_dimension_regreso)   ]],][[3]] )
       
       
-      tabla_temp <- datos_principales$data[ eval( parse(text = cadena_filtro) ) ]
+      if( !is.null(cadena_filtro) ){
+        tabla_temp <- datos_principales$data[ eval( parse(text = cadena_filtro) ) ]  
+      }else{
+        tabla_temp <- datos_principales$data
+      }
       
       agrupacion <- as.character( datos_principales$jerarquia_dimension_regreso[ lon + 1 ] )
       
