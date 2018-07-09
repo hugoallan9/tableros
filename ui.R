@@ -90,7 +90,6 @@ dashboardPage(
                        actionButton("retroceder_tabla", icon = icon("glyphicon glyphicon-arrow-up", lib= "glyphicon"), label = "Nivel anterior"))
               ),
               
-
               fluidRow(
                 column(12, align = "left", 
                        DT::dataTableOutput("tabla")%>% shinycssloaders::withSpinner()

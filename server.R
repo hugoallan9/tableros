@@ -1030,7 +1030,7 @@ shinyServer(function(input, output, session) {
     },
     content = function(fname){
       d <- datos_principales$tabla_temporal %>%
-        select_if( is.numeric ) %>%
+        mutate_if( is.numeric, funs(round(.,2)) )
         
       write.csv(datos_principales$tabla_temporal,fname, fileEncoding = "cp1252")
     }
